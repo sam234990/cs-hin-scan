@@ -223,7 +223,7 @@ void HinGraph::cs_hin_scan(string query_file, string mode)
         {
             mode_query = 3;
         }
-        // improved_query_();
+        improved_query_();
     }
 
     // count_core_vertices();
@@ -552,11 +552,34 @@ void HinGraph::baseline_query_()
     // cout << "finish query " << query_node_num << " times, use time: " << all_time << endl;
 }
 
-// void HinGraph::estimate_best_order(vector<int> ){}
+void HinGraph::estimate_best_order(vector<int> &order_type)
+{
+    queue<int> q;
+    vector<vector<int>> bin_types(n_types, vector<int>());
+    for (auto pair : type_epsilon)
+    {
+        if (pair.second == 0)
+            continue;
+        if (pair.first == p_query_type)
+        {
+            bin_types[2].push_back(pair.first);
+        }
+        bin_types[distance_[pair.first]].push_back(pair.first);
+    }
+    for (int i = 0; i < n_types; i++)
+    {
+        if (bin_types[i].size() == 0)
+            continue;
+        if (bin_types[i].size() == 1)
+            order_type.push_back(bin_types[i][0]);
+        // TODO compute the order of same distance
+    }
+}
 
 void HinGraph::improved_query_()
 {
-
+    vector<int> order_type;
+    estimate_best_order(order_type);
     cout << "start improve online query " << endl;
     long all_time = 0;
     vector<long> time_cost(query_node_num, 0);
