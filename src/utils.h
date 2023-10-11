@@ -59,6 +59,7 @@ class utils
 	vector<vector<Vertex_type>> edges_;
 	// Vertex_type *edges_; // hin graph
 	vector<vector<int>> hin_schema_adjacencyMatrix;
+	vector<vector<int>> hin_schema_edge_cnt;
 
 	int getLineCount(string &filename);
 	int get_vertex_type(int vertex_id);

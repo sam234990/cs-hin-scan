@@ -264,16 +264,19 @@ bool utils::compareVertex(const Vertex_type &v1, const Vertex_type &v2)
 void utils::make_hin_schema()
 {
 	hin_schema_adjacencyMatrix.resize(n_types, std::vector<int>(n_types, 0));
+	hin_schema_edge_cnt.resize(n_types, vector<int>(n_types, 0));
 	for (int i = 0; i < n_types; i++)
 	{
 		int start_v = vertex_start_map_[i];
 		int end_v = ((i + 1) == n_types) ? n : vertex_start_map_[i + 1];
 		set<int> uniqueTypes;
+		map<int, int> type_edge_cnt;
 		for (int j = start_v; j < end_v; j++)
 		{
 			for (auto nei : edges_[j])
 			{
 				uniqueTypes.insert(nei.v_type);
+				type_edge_cnt[nei.v_type]++;
 			}
 		}
 		for (int num : uniqueTypes)
@@ -284,8 +287,21 @@ void utils::make_hin_schema()
 				hin_schema_adjacencyMatrix[num][i] = 1;
 			}
 		}
+		for (auto pair : type_edge_cnt)
+		{
+			hin_schema_edge_cnt[i][pair.first] = pair.second;
+		}
 	}
 	for (const auto &row : hin_schema_adjacencyMatrix)
+	{
+		for (int val : row)
+		{
+			std::cout << val << " ";
+		}
+		std::cout << std::endl;
+	}
+	cout << "edge cnt" << endl;
+	for (const auto &row : hin_schema_edge_cnt)
 	{
 		for (int val : row)
 		{
@@ -313,6 +329,14 @@ void utils::save_graph()
 		for (int j = 0; j < n_types; j++)
 		{
 			graph_info << hin_schema_adjacencyMatrix[i][j] << " ";
+		}
+		graph_info << endl;
+	}
+	for (int i = 0; i < n_types; i++)
+	{
+		for (int j = 0; j < n_types; j++)
+		{
+			graph_info << hin_schema_edge_cnt[i][j] << " ";
 		}
 		graph_info << endl;
 	}

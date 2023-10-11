@@ -148,6 +148,15 @@ void HinGraph::load_graph()
             iss3 >> hin_schema_adjacencyMatrix[i][j];
         }
     }
+    for (int i = 0; i < n_types; i++)
+    {
+        getline(graph_info, line);
+        istringstream iss4(line);
+        for (int j = 0; j < n_types; j++)
+        {
+            iss4 >> hin_schema_edge_cnt[i][j];
+        }
+    }
     graph_info.close();
 
     cout << m << " " << n << " " << n_types << endl;
@@ -197,7 +206,11 @@ void HinGraph::cs_hin_scan(string query_file, string mode)
     }
     else
     {
-        // cout << "Improved Query" << endl;
+        if (mode == "-q")
+        {
+            baseline_query_();
+        }
+
         if (mode == "-q1")
         {
             mode_query = 1;
@@ -210,7 +223,6 @@ void HinGraph::cs_hin_scan(string query_file, string mode)
         {
             mode_query = 3;
         }
-        baseline_query_();
         // improved_query_();
     }
 
@@ -489,6 +501,20 @@ void HinGraph::reinitialize_query_()
     return;
 }
 
+void HinGraph::print_result()
+{
+    int num_community = 0, core_num = 0;
+    for (int i = 0; i < num_query_type_; i++)
+    {
+        if (is_in_community[i])
+            num_community++;
+        if (cand_core_[i])
+            core_num++;
+    }
+    if (similar_degree[query_i] >= p_mu)
+        cout << query_i + query_type_offset_ << " in community contains number of vertex is : " << num_community << " Core number : " << core_num << endl;
+}
+
 void HinGraph::baseline_query_()
 {
     cout << "start baseline online query " << endl;
@@ -519,20 +545,49 @@ void HinGraph::baseline_query_()
         long cost_time = t1.StopTime();
         all_time += cost_time;
         time_cost[i] = cost_time;
-        int num_community = 0, core_num = 0;
-        for (int i = 0; i < num_query_type_; i++)
-        {
-            if (is_in_community[i])
-                num_community++;
-            if (cand_core_[i])
-                core_num++;
-        }
-        if (similar_degree[query_i] >= p_mu)
-            cout << query_i + query_type_offset_ << " in community contains number of vertex is : " << num_community << " Core number : " << core_num << endl;
+        print_result();
     }
     string str1 = "finish query " + to_string(query_node_num) + " times, use time:";
     Timer::PrintTime(str1, all_time);
     // cout << "finish query " << query_node_num << " times, use time: " << all_time << endl;
+}
+
+// void HinGraph::estimate_best_order(vector<int> ){}
+
+void HinGraph::improved_query_()
+{
+
+    cout << "start improve online query " << endl;
+    long all_time = 0;
+    vector<long> time_cost(query_node_num, 0);
+    for (int i = 0; i < query_node_num; i++)
+    {
+        query_i = query_node_list[i];
+        reinitialize_query_();
+        queue<int> cs_node_q;
+        is_in_community[query_i] = true;
+
+        Timer t1;
+        t1.Start();
+        search_k_strata(query_i);
+        search_cand_sn(query_i);
+        cs_check_cluster_core(query_i, cs_node_q);
+        if (similar_degree[query_i] < p_mu)
+        {
+            cout << query_i << " Cannot search a community" << endl;
+        }
+        else
+        {
+            explore_community(cs_node_q);
+        }
+
+        long cost_time = t1.StopTime();
+        all_time += cost_time;
+        time_cost[i] = cost_time;
+        print_result();
+    }
+    string str1 = "finish query " + to_string(query_node_num) + " times, use time:";
+    Timer::PrintTime(str1, all_time);
 }
 
 void HinGraph::search_k_strata(int i)

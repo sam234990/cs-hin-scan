@@ -47,6 +47,7 @@ private:
     // hin graph
     int m, n, n_types;
     vector<vector<int>> hin_schema_adjacencyMatrix;
+	vector<vector<int>> hin_schema_edge_cnt;
     vector<int> vertex_start_map_;
     int *vertex_offset_;
     Vertex_type *edges_;
@@ -85,6 +86,8 @@ private:
     void reinitialize_query_();
     void baseline_query_();
     void improved_query_();
+
+    void print_result();
 
     // cs-search
     void search_k_strata(int i);

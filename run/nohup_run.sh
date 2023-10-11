@@ -2,9 +2,9 @@
 
 # option="fidx"
 # option="qidxON"
-option="q1"
-# option="q3"
-datasets="DBLP_2"
+# option="q1"
+option="f"
+datasets="DBLP_1"
 input_dir="/mnt/data/wangshu/scan/$datasets"
 output_path="/mnt/data/wangshu/scan/$datasets"
 mu_values=(2 5 10 15 20)
@@ -16,5 +16,5 @@ query_file="./$query_file_name"
 # log file path
 log_file="../debug_result/$datasets-${query_file_name%.txt}-$option.log"
 
-nohup ./cs_hin_scan -$option $input_dir $query_file \
+nohup ./cs_hin_scan -$option $input_dir $output_path \
     > $log_file 2>&1 &
