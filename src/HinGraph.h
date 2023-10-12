@@ -89,19 +89,23 @@ private:
 
     void estimate_best_order(vector<int> &order_type);
 
-    void print_result();
+    void print_result(bool print_all);
 
     // cs-search
-    void search_k_strata(int i);
-    void search_cand_sn(int i);
-    void cs_check_cluster_core(int i, queue<int> &cs_node_q);
+    void search_k_strata(int u);
+    void search_cand_sn(int u);
+    void cs_check_cluster_core(int u, queue<int> &cs_node_q);
     void explore_community(queue<int> &cs_queue);
+
+    void cs_check_cluster_core_order(int u, queue<int> &cs_node_q, vector<int> order_type);
 
     // similarity compute
     bool check_struc_sim(int a, int b);
     int get_vertex_type(int vertex_id);
     double calculateJaccardSimilarity(const vector<int> &vec1, const vector<int> &vec2);
     bool judgeJacSim(const vector<int> &vec1, const vector<int> &vec2, double type_i_epsilon);
+    bool check_one_type_sim(int a, int b, int type);
+    bool check_struc_sim_with_order(int a, int b, const vector<int> order_type);
 
     // debug check
     void check_neighbor(int i);

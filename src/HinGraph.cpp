@@ -130,6 +130,7 @@ void HinGraph::load_graph()
     istringstream iss(line);
     iss >> m >> n >> n_types;
     hin_schema_adjacencyMatrix.resize(n_types, ::vector<int>(n_types, 0));
+    hin_schema_edge_cnt.resize(n_types, ::vector<int>(n_types, 0));
     getline(graph_info, line);
     istringstream iss2(line);
     for (int i = 0; i < n_types; i++)
@@ -209,6 +210,7 @@ void HinGraph::cs_hin_scan(string query_file, string mode)
         if (mode == "-q")
         {
             baseline_query_();
+            return;
         }
 
         if (mode == "-q1")
@@ -443,12 +445,13 @@ void HinGraph::initialize_query_()
             continue;
         if (pair.second == 0.0)
             continue;
-        if (distance_[pair.first] < min_distance)
+        if (distance_[pair.first] <= min_distance)
         {
             cand_gen_type = pair.first;
             min_distance = distance_[pair.first];
         }
     }
+    cout << cand_gen_type << " ";
 
     // initial query neighbor
     query_type_offset_ = vertex_start_map_[p_query_type];
@@ -501,15 +504,27 @@ void HinGraph::reinitialize_query_()
     return;
 }
 
-void HinGraph::print_result()
+void HinGraph::print_result(bool print_all)
 {
     int num_community = 0, core_num = 0;
     for (int i = 0; i < num_query_type_; i++)
     {
         if (is_in_community[i])
+        {
             num_community++;
-        if (cand_core_[i])
-            core_num++;
+            if (print_all)
+                cout << i;
+            if (cand_core_[i])
+            {
+                core_num++;
+                if (print_all)
+                    cout << "-c";
+            }
+            if (print_all)
+                cout << " ";
+            if (print_all && (num_community % 10 == 0))
+                cout << endl;
+        }
     }
     if (similar_degree[query_i] >= p_mu)
         cout << query_i + query_type_offset_ << " in community contains number of vertex is : " << num_community << " Core number : " << core_num << endl;
@@ -541,15 +556,13 @@ void HinGraph::baseline_query_()
             explore_community(cs_node_q);
         }
 
-        // all_time += t1.StopAndPrint("finish baseline online query. Use time");
         long cost_time = t1.StopTime();
         all_time += cost_time;
         time_cost[i] = cost_time;
-        print_result();
+        print_result(false);
     }
     string str1 = "finish query " + to_string(query_node_num) + " times, use time:";
     Timer::PrintTime(str1, all_time);
-    // cout << "finish query " << query_node_num << " times, use time: " << all_time << endl;
 }
 
 void HinGraph::estimate_best_order(vector<int> &order_type)
@@ -563,17 +576,80 @@ void HinGraph::estimate_best_order(vector<int> &order_type)
         if (pair.first == p_query_type)
         {
             bin_types[2].push_back(pair.first);
+            continue;
         }
         bin_types[distance_[pair.first]].push_back(pair.first);
     }
+    vector<int> types_node_cnt(n_types, 0);
+    for (int i = 0; i < n_types; i++)
+    { // get the node count of each type
+        int end_num = (i + 1) == n_types ? n : vertex_start_map_[i + 1];
+        types_node_cnt[i] = end_num - vertex_start_map_[i];
+    }
+    vector<double> types_edge_ratio(n_types, 0);
     for (int i = 0; i < n_types; i++)
     {
+        int cur_dis = i;
         if (bin_types[i].size() == 0)
             continue;
         if (bin_types[i].size() == 1)
-            order_type.push_back(bin_types[i][0]);
-        // TODO compute the order of same distance
+        {
+            int cur_type = bin_types[i][0];
+            order_type.push_back(cur_type);
+            if (cur_dis == 1)
+            {
+                types_edge_ratio[cur_type] = hin_schema_edge_cnt[cur_type][p_query_type];
+            }
+            else
+            {
+                for (int j = 0; j < n_types; j++)
+                {
+                    if (hin_schema_adjacencyMatrix[cur_type][j] == 0)
+                        continue;
+                    if (distance_[j] == cur_dis - 1)
+                    {
+                        double edge_num = hin_schema_edge_cnt[cur_type][j] * types_edge_ratio[j] / types_node_cnt[j];
+                        types_edge_ratio[cur_type] += edge_num;
+                    }
+                }
+            }
+            continue;
+        }
+
+        // compute the order of same distance
+        vector<pair<int, double>> same_dis_type_score;
+        for (auto cur_type : bin_types[i])
+        {
+            if (cur_dis == 1)
+            {
+                types_edge_ratio[cur_type] = hin_schema_edge_cnt[cur_type][p_query_type];
+            }
+            else
+            {
+                for (int j = 0; j < n_types; j++)
+                {
+                    if (hin_schema_adjacencyMatrix[cur_type][j] == 0)
+                        continue;
+                    if (distance_[j] == cur_dis - 1)
+                    {
+                        double edge_num = hin_schema_edge_cnt[cur_type][j] * types_edge_ratio[j] / types_node_cnt[j];
+                        types_edge_ratio[cur_type] += edge_num;
+                    }
+                }
+            }
+            same_dis_type_score.push_back(make_pair(cur_type, types_edge_ratio[cur_type] / types_node_cnt[cur_type]));
+        }
+        sort(same_dis_type_score.begin(), same_dis_type_score.end(), [](const auto &a, const auto &b)
+             { return a.second < b.second; });
+        for (auto pair : same_dis_type_score)
+        {
+            order_type.push_back(pair.first);
+        }
     }
+    cand_gen_type = order_type[0];
+    for (auto type : order_type)
+        cout << type << " ";
+    cout << endl;
 }
 
 void HinGraph::improved_query_()
@@ -589,25 +665,30 @@ void HinGraph::improved_query_()
         reinitialize_query_();
         queue<int> cs_node_q;
         is_in_community[query_i] = true;
-
         Timer t1;
         t1.Start();
         search_k_strata(query_i);
         search_cand_sn(query_i);
-        cs_check_cluster_core(query_i, cs_node_q);
+        cs_check_cluster_core_order(query_i, cs_node_q, order_type);
         if (similar_degree[query_i] < p_mu)
         {
             cout << query_i << " Cannot search a community" << endl;
         }
         else
         {
-            explore_community(cs_node_q);
+            while (!cs_node_q.empty())
+            {
+                int vertex_i = cs_node_q.front();
+                cs_node_q.pop();
+                search_cand_sn(vertex_i);
+                cs_check_cluster_core_order(vertex_i, cs_node_q, order_type);
+            }
         }
 
         long cost_time = t1.StopTime();
         all_time += cost_time;
         time_cost[i] = cost_time;
-        print_result();
+        print_result(false);
     }
     string str1 = "finish query " + to_string(query_node_num) + " times, use time:";
     Timer::PrintTime(str1, all_time);
@@ -680,8 +761,22 @@ void HinGraph::search_cand_sn(int i)
     // }
 
     // 2. target type is not considered, use cand gen type k-strata search cand_sn
-    int cand_gen_dis = distance_[cand_gen_type];
-    const vector<int> &gen_type_dn = dn_i.d_neighbor_[cand_gen_type];
+    int can_gen = cand_gen_type;
+    if (dn_i.num_d_neighbor[can_gen] == 0)
+    {
+        for (auto pair : type_epsilon)
+        {
+            if (pair.second == 0)
+                continue;
+            if (dn_i.num_d_neighbor[pair.first] != 0)
+            {
+                can_gen = pair.first;
+                break;
+            }
+        }
+    }
+    const vector<int> &gen_type_dn = dn_i.d_neighbor_[can_gen];
+    int cand_gen_dis = distance_[can_gen];
     unordered_set<int> v_vertex;
     for (auto v_i : gen_type_dn)
     {
@@ -723,6 +818,14 @@ void HinGraph::search_cand_sn(int i)
         }
     }
     sort(cand_sn_list[i].begin(), cand_sn_list[i].end());
+    for (int cand_i : cand_sn_list[i])
+    {
+        int v = cand_i - query_type_offset_;
+        if (ks_visit[v] == false)
+        {
+            search_k_strata(v);
+        }
+    }
 }
 
 void HinGraph::cs_check_cluster_core(int u, queue<int> &cs_queue)
@@ -741,8 +844,6 @@ void HinGraph::cs_check_cluster_core(int u, queue<int> &cs_queue)
         {
             int v_id = cand_sn_list[u][j];
             int v = v_id - query_type_offset_;
-            if (ks_visit[v] == false) // this vertex has not searched k-strata
-                search_k_strata(v);
             if (v_vertex.find(v_id) != v_vertex.end()) // this sn has been computed before
                 continue;
 
@@ -832,6 +933,183 @@ void HinGraph::explore_community(queue<int> &cs_queue)
         search_cand_sn(vertex_i);
         cs_check_cluster_core(vertex_i, cs_queue);
     }
+}
+
+void HinGraph::cs_check_cluster_core_order(int u, queue<int> &cs_queue, vector<int> order_type)
+{
+    // 1. check core
+    int vertex_u_id = u + query_type_offset_;
+    int j = 0;
+    unordered_set<int> v_vertex(qn_adj_List[u].begin(), qn_adj_List[u].end());
+    for (auto not_i : non_sn_list[u])
+        v_vertex.insert(not_i);
+    if (similar_degree[u] < p_mu)
+    {
+        similar_degree[u] = qn_adj_List[u].size();
+        effective_degree[u] = cand_sn_list[u].size();
+        for (; j < cand_sn_list[u].size(); j++)
+        {
+            int v_id = cand_sn_list[u][j];
+            int v = v_id - query_type_offset_;
+            if (v_vertex.find(v_id) != v_vertex.end()) // this sn has been computed before
+                continue;
+
+            bool sim_res = check_struc_sim_with_order(u, v, order_type);
+            if (sim_res)
+            {
+                similar_degree[u]++;
+                qn_adj_List[u].push_back(v_id);
+            }
+            else
+                effective_degree[u]--;
+
+            if (visited_qtv_[v] == false && v != u)
+            {
+                if (sim_res)
+                {
+                    similar_degree[v]++;
+                    qn_adj_List[v].push_back(vertex_u_id);
+                }
+                else
+                    non_sn_list[v].push_back(vertex_u_id);
+            }
+            if (effective_degree[u] < p_mu || similar_degree[u] >= p_mu)
+                break;
+        }
+    }
+    visited_qtv_[u] = true;
+
+    // 2. cluster core
+    if (similar_degree[u] < p_mu)
+    {
+        cand_core_[u] = false;
+        return;
+    }
+    cand_core_[u] = true;
+    for (auto visit_sn_id : qn_adj_List[u])
+    {
+        int sn_i = visit_sn_id - query_type_offset_;
+        if (is_in_community[sn_i] == false)
+        {
+            is_in_community[sn_i] = true; // add into community
+            cs_queue.push(sn_i);          // add to expand queue
+        }
+    }
+    for (; j < cand_sn_list[u].size(); j++)
+    {
+        int v_id = cand_sn_list[u][j];
+        int v = v_id - query_type_offset_;
+        if (is_in_community[v] == true) // already in community
+            continue;
+        if (v_vertex.find(v_id) != v_vertex.end()) // this sn has been computed before
+            continue;
+        if (ks_visit[v] == false) // this vertex has not searched k-strata
+            search_k_strata(v);
+
+        bool sim_res = check_struc_sim_with_order(u, v, order_type);
+        if (sim_res)
+        {
+            similar_degree[u]++;
+            qn_adj_List[u].push_back(v_id);
+            if (is_in_community[v] == false)
+            {
+                is_in_community[v] = true;
+                cs_queue.push(v); // add to expand queue
+            }
+        }
+
+        if (visited_qtv_[v] == false && v != u)
+        {
+            if (sim_res)
+            {
+                similar_degree[v]++;
+                qn_adj_List[v].push_back(vertex_u_id);
+            }
+            else
+                non_sn_list[v].push_back(vertex_u_id);
+        }
+    }
+    return;
+    /*
+    // 1. check core with order type
+    int vertex_u_id = u + query_type_offset_;
+    unordered_set<int> v_vertex(qn_adj_List[u].begin(), qn_adj_List[u].end());
+    for (auto not_i : non_sn_list[u])
+        v_vertex.insert(not_i);
+
+    similar_degree[u] = qn_adj_List[u].size();
+    vector<int> tmp;
+    tmp.reserve(cand_sn_list[u].size());
+    for (auto cand_i : cand_sn_list[u])
+    {
+        if (v_vertex.find(cand_i - query_type_offset_) != v_vertex.end()) // this sn has been computed before
+            continue;
+        tmp.push_back(cand_i);
+    }
+    cand_sn_list[u] = move(tmp);
+    effective_degree[u] = cand_sn_list[u].size() + qn_adj_List[u].size();
+    if (effective_degree[u] < p_mu)
+    {
+        cand_core_[u] = false;
+        return;
+    }
+    int order_type_num = order_type.size();
+    for (int i = 0; i < order_type_num; i++)
+    {
+        int type_i = order_type[i];
+        vector<int> tmp;
+        tmp.reserve(cand_sn_list[u].size());
+        for (int j = 0; j < cand_sn_list[u].size(); j++)
+        {
+            int v_id = cand_sn_list[u][j];
+            int v = v_id - query_type_offset_;
+            bool sim_res = check_one_type_sim(u, v, type_i);
+
+            if (sim_res)
+                tmp.push_back(v_id);
+            else
+                effective_degree[u]--;
+
+            if (i == (order_type_num - 1))
+            {
+                if (sim_res)
+                {
+                    similar_degree[u]++;
+                    qn_adj_List[u].push_back(v_id);
+                    if (visited_qtv_[v] == false && v != u)
+                    {
+                        similar_degree[v]++;
+                        qn_adj_List[v].push_back(vertex_u_id);
+                    }
+                    if (is_in_community[v] == false)
+                    {
+                        is_in_community[v] = true;
+                        cs_queue.push(v); // add to expand queue
+                    }
+                }
+                else
+                {
+                    if (visited_qtv_[v] == false && v != u)
+                        non_sn_list[v].push_back(vertex_u_id);
+                }
+            }
+
+            if (effective_degree[u] < p_mu)
+            {
+                cand_core_[u] = false;
+                return;
+            }
+        }
+        cand_sn_list[u] = move(tmp);
+    }
+
+    if (similar_degree[u] < p_mu)
+    {
+        cand_core_[u] = false;
+        return;
+    }
+    cand_core_[u] = true;
+    */
 }
 
 void computeIntersection_cnt(vector<int> &vec1, const vector<int> &vec2, vector<vector<int>> &qn_cnt,
@@ -934,11 +1212,28 @@ bool HinGraph::check_struc_sim(int a, int b)
     for (const auto &pair : type_epsilon)
     {
         int type = pair.first;
-        double type_epsilon = pair.second;
-        if (type_epsilon == 0.0)
+        double type_ep = pair.second;
+        if (type_ep == 0.0)
             continue;
 
-        if (judgeJacSim(dn_adj_List[a].d_neighbor_[type], dn_adj_List[b].d_neighbor_[type], type_epsilon) == false)
+        if (judgeJacSim(dn_adj_List[a].d_neighbor_[type], dn_adj_List[b].d_neighbor_[type], type_ep) == false)
+            return false;
+    }
+    return true;
+}
+
+bool HinGraph::check_struc_sim_with_order(int a, int b, const vector<int> order_type)
+{
+    if (a == b)
+        return true;
+
+    for (const auto &type : order_type)
+    {
+        double type_ep = type_epsilon[type];
+        if (type_ep == 0.0)
+            continue;
+
+        if (judgeJacSim(dn_adj_List[a].d_neighbor_[type], dn_adj_List[b].d_neighbor_[type], type_ep) == false)
             return false;
     }
     return true;
@@ -980,6 +1275,19 @@ bool HinGraph::judgeJacSim(const vector<int> &vec1, const vector<int> &vec2, dou
     double sim = static_cast<double>(intersection) / static_cast<double>(unionSize);
 
     return sim >= type_i_epsilon;
+}
+
+bool HinGraph::check_one_type_sim(int a, int b, int type)
+{
+    if (a == b)
+        return true;
+    double type_ep = type_epsilon[type];
+    if (type_ep == 0)
+        return true;
+    if (judgeJacSim(dn_adj_List[a].d_neighbor_[type], dn_adj_List[b].d_neighbor_[type], type_ep))
+        return true;
+    else
+        return false;
 }
 
 void HinGraph::count_core_vertices()
