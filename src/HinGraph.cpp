@@ -220,6 +220,8 @@ void HinGraph::cs_hin_scan(string query_file, string mode)
         else if (mode == "-q2")
         {
             mode_query = 2;
+            baseline_query_();
+            return;
         }
         else if (mode == "-q3")
         {
@@ -487,6 +489,8 @@ void HinGraph::reinitialize_query_()
             dn_adj_List[i].d_neighbor_[pair.first] = vector<int>();
             dn_adj_List[i].d_neighbor_[pair.first].reserve(initial_vector_size);
         }
+        dn_adj_List[i].type_order_ = vector<int>();
+        dn_adj_List[i].type_order_.reserve(n_types);
         qn_adj_List[i] = vector<int>();
         qn_adj_List[i].reserve(initial_vector_size);
         cand_sn_list[i] = vector<int>();
@@ -504,7 +508,7 @@ void HinGraph::reinitialize_query_()
     return;
 }
 
-void HinGraph::print_result(bool print_all)
+void HinGraph::print_result(bool print_all, long use_time)
 {
     int num_community = 0, core_num = 0;
     for (int i = 0; i < num_query_type_; i++)
@@ -527,7 +531,10 @@ void HinGraph::print_result(bool print_all)
         }
     }
     if (similar_degree[query_i] >= p_mu)
-        cout << query_i + query_type_offset_ << " in community contains number of vertex is : " << num_community << " Core number : " << core_num << endl;
+    {
+        cout << query_i + query_type_offset_ << " community contains Num(V) : " << num_community << " Core number: " << core_num;
+        cout << ". Use time: " << use_time << endl;
+    }
 }
 
 void HinGraph::baseline_query_()
@@ -559,7 +566,7 @@ void HinGraph::baseline_query_()
         long cost_time = t1.StopTime();
         all_time += cost_time;
         time_cost[i] = cost_time;
-        print_result(false);
+        print_result(false, cost_time);
     }
     string str1 = "finish query " + to_string(query_node_num) + " times, use time:";
     Timer::PrintTime(str1, all_time);
@@ -688,7 +695,7 @@ void HinGraph::improved_query_()
         long cost_time = t1.StopTime();
         all_time += cost_time;
         time_cost[i] = cost_time;
-        print_result(false);
+        print_result(false, cost_time);
     }
     string str1 = "finish query " + to_string(query_node_num) + " times, use time:";
     Timer::PrintTime(str1, all_time);
@@ -747,6 +754,7 @@ void HinGraph::search_k_strata(int i)
         dn_adj_List[i].num_d_neighbor[type] = dn_adj_List[i].d_neighbor_[type].size();
         sort(dn_adj_List[i].d_neighbor_[type].begin(), dn_adj_List[i].d_neighbor_[type].end());
     }
+
     ks_visit[i] = true;
 }
 
@@ -789,7 +797,8 @@ void HinGraph::search_cand_sn(int i)
             int cur_type = get_vertex_type(vertex_i);
             int cur_dis = distance_[cur_type];
             gen_q.pop();
-            if (cur_step >= cand_gen_dis)
+            // if (cur_step >= cand_gen_dis)
+            if (cur_step >= p_d)
                 continue;
             int nei_edge_start = vertex_offset_[vertex_i];
             int nei_end = ((vertex_i + 1) == n) ? m : vertex_offset_[vertex_i + 1];
@@ -806,8 +815,8 @@ void HinGraph::search_cand_sn(int i)
                 }
                 else
                 {
-                    if (distance_[nei_type] > cur_dis) // wrong direction
-                        continue;
+                    // if (distance_[nei_type] > cur_dis) // wrong direction
+                    //     continue;
                     if (v_vertex.find(nei_id) != v_vertex.end()) // this neighbor visited before
                         continue;
 
@@ -836,22 +845,54 @@ void HinGraph::cs_check_cluster_core(int u, queue<int> &cs_queue)
     unordered_set<int> v_vertex(qn_adj_List[u].begin(), qn_adj_List[u].end());
     for (auto not_i : non_sn_list[u])
         v_vertex.insert(not_i);
+
+    effective_degree[u] = cand_sn_list[u].size();
     if (similar_degree[u] < p_mu)
     {
         similar_degree[u] = qn_adj_List[u].size();
-        effective_degree[u] = cand_sn_list[u].size();
+        vector<int> tmp_in_com;
+        tmp_in_com.reserve(cand_sn_list[u].size());
         for (; j < cand_sn_list[u].size(); j++)
         {
             int v_id = cand_sn_list[u][j];
             int v = v_id - query_type_offset_;
-            if (v_vertex.find(v_id) != v_vertex.end()) // this sn has been computed before
+            if ((v_vertex.find(v_id) != v_vertex.end())) // this sn has been computed before
                 continue;
-
+            if ((mode_query == 2) && is_in_community[v] == true)
+            {
+                tmp_in_com.push_back(v_id);
+                continue;
+            }
             bool sim_res = check_struc_sim(u, v);
             if (sim_res)
             {
                 similar_degree[u]++;
                 qn_adj_List[u].push_back(v_id);
+            }
+            else
+                effective_degree[u]--;
+
+            if (visited_qtv_[v] == false && v != u)
+            {
+                if (sim_res)
+                {
+                    similar_degree[v]++;
+                    qn_adj_List[v].push_back(vertex_u_id);
+                }
+                else
+                    non_sn_list[v].push_back(vertex_u_id);
+            }
+            if (effective_degree[u] < p_mu || similar_degree[u] >= p_mu)
+                break;
+        }
+        for (auto in_v_id : tmp_in_com)
+        {
+            int v = in_v_id - query_type_offset_;
+            bool sim_res = check_struc_sim(u, v);
+            if (sim_res)
+            {
+                similar_degree[u]++;
+                qn_adj_List[u].push_back(in_v_id);
             }
             else
                 effective_degree[u]--;
@@ -943,22 +984,67 @@ void HinGraph::cs_check_cluster_core_order(int u, queue<int> &cs_queue, vector<i
     unordered_set<int> v_vertex(qn_adj_List[u].begin(), qn_adj_List[u].end());
     for (auto not_i : non_sn_list[u])
         v_vertex.insert(not_i);
+
+    vector<pair<int, int>> type_num_;
+    for (const auto &pair : type_epsilon)
+    {
+        if (pair.second == 0.0)
+            continue;
+        type_num_.push_back(make_pair(pair.first, dn_adj_List[u].num_d_neighbor[pair.first]));
+    }
+    sort(type_num_.begin(), type_num_.end(), [](const auto &a, const auto &b)
+         { return a.second < b.second; });
+    for (auto pair : type_num_)
+        dn_adj_List[u].type_order_.push_back(pair.first);
+
     if (similar_degree[u] < p_mu)
     {
         similar_degree[u] = qn_adj_List[u].size();
         effective_degree[u] = cand_sn_list[u].size();
+        vector<int> tmp_in_com;
+        tmp_in_com.reserve(cand_sn_list[u].size());
         for (; j < cand_sn_list[u].size(); j++)
         {
             int v_id = cand_sn_list[u][j];
             int v = v_id - query_type_offset_;
             if (v_vertex.find(v_id) != v_vertex.end()) // this sn has been computed before
                 continue;
+            if ((mode_query == 2) && is_in_community[v] == true)
+            {
+                tmp_in_com.push_back(v_id);
+                continue;
+            }
 
-            bool sim_res = check_struc_sim_with_order(u, v, order_type);
+            bool sim_res = check_struc_sim_with_order(u, v, dn_adj_List[u].type_order_);
             if (sim_res)
             {
                 similar_degree[u]++;
                 qn_adj_List[u].push_back(v_id);
+            }
+            else
+                effective_degree[u]--;
+
+            if (visited_qtv_[v] == false && v != u)
+            {
+                if (sim_res)
+                {
+                    similar_degree[v]++;
+                    qn_adj_List[v].push_back(vertex_u_id);
+                }
+                else
+                    non_sn_list[v].push_back(vertex_u_id);
+            }
+            if (effective_degree[u] < p_mu || similar_degree[u] >= p_mu)
+                break;
+        }
+        for (auto in_v_id : tmp_in_com)
+        {
+            int v = in_v_id - query_type_offset_;
+            bool sim_res = check_struc_sim_with_order(u, v, dn_adj_List[u].type_order_);
+            if (sim_res)
+            {
+                similar_degree[u]++;
+                qn_adj_List[u].push_back(in_v_id);
             }
             else
                 effective_degree[u]--;
@@ -1006,7 +1092,7 @@ void HinGraph::cs_check_cluster_core_order(int u, queue<int> &cs_queue, vector<i
         if (ks_visit[v] == false) // this vertex has not searched k-strata
             search_k_strata(v);
 
-        bool sim_res = check_struc_sim_with_order(u, v, order_type);
+        bool sim_res = check_struc_sim_with_order(u, v, dn_adj_List[u].type_order_);
         if (sim_res)
         {
             similar_degree[u]++;

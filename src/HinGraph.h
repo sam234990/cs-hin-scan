@@ -22,6 +22,7 @@ struct Vertex_neighbor
 {
     unordered_map<int, vector<int>> d_neighbor_;
     unordered_map<int, int> num_d_neighbor;
+    vector<int> type_order_;
 };
 
 struct Query_neighbor_order
@@ -89,7 +90,7 @@ private:
 
     void estimate_best_order(vector<int> &order_type);
 
-    void print_result(bool print_all);
+    void print_result(bool print_all, long use_time);
 
     // cs-search
     void search_k_strata(int u);
