@@ -5,6 +5,7 @@
 #include "timer.h"
 #include "MuTree.h"
 #include "ONIndex.h"
+#include "multiLevelQueue.h"
 #include <vector>
 #include <string>
 #include <vector>
@@ -81,6 +82,8 @@ private:
     int cand_gen_type;
     vector<bool> ks_visit;
     vector<bool> is_in_community;
+    vector<bool> res_community;
+    multiLevelQueue mlq;
 
     void load_query_file(string query_file);
     void initialize_query_();
@@ -95,10 +98,12 @@ private:
     // cs-search
     void search_k_strata(int u);
     void search_cand_sn(int u);
+    void check_sn(int u, queue<int> &cs_queue, queue<int> &delete_q);
+    void core_decomposition(queue<int> &delete_q);
     void cs_check_cluster_core(int u, queue<int> &cs_node_q);
     void explore_community(queue<int> &cs_queue);
 
-    void cs_check_cluster_core_order(int u, queue<int> &cs_node_q, vector<int> order_type);
+    void cs_check_cluster_core_order(int u, vector<int> order_type);
 
     // similarity compute
     bool check_struc_sim(int a, int b);

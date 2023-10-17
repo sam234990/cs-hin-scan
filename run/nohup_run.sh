@@ -11,7 +11,7 @@ mu_values=(2 5 10 15 20)
 e_values=(0.2 0.4 0.6 0.8)
 mu=2
 e=0.2
-query_file_name="query_type1.txt"
+query_file_name="query_1.txt"
 query_file="./$query_file_name"
 # log file path
 log_file="../debug_result/$datasets-${query_file_name%.txt}-$option.log"
