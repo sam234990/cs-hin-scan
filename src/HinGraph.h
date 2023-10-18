@@ -32,11 +32,26 @@ struct Nei_similarity
     {
         sim_vec.push_back(id_sim);
     }
+    Nei_similarity() : neighbor_id(0), domin_rank(0) {}
 
     int neighbor_id;
     vector<float> sim_vec;
     int domin_rank;
 };
+
+struct k_threshold
+{
+    int k;
+    vector<vector<float>> thres_vecs;
+};
+
+struct k_homo_adj_node
+{
+    k_homo_adj_node(int id, int off) : neighbor_i(id), h_sim_offset(off){}
+    int neighbor_i;
+    int h_sim_offset;
+};
+
 
 class HinGraph
 {
@@ -71,10 +86,16 @@ private:
     vector<vector<int>> qn_adj_List; // qn
 
     // index variables
+    int k_max;
+    vector<int> index_type_order;
+    vector<bool> finish_vertex;
+    vector<bool> community_vertex;
     vector<Vertex_neighbor> dn_adj_List; // dn
     vector<vector<Nei_similarity>> h_sim;
+    vector<vector<k_threshold>> node_k_thres;
     unordered_map<int, vector<int>> t_hop_visited;
     unordered_map<int, vector<int>> empty_dn_set;
+    vector<vector<k_homo_adj_node>> k_homo_graph;
 
     // pscan variables
     vector<bool> visited_qtv_;
@@ -112,11 +133,19 @@ private:
 
     // index construct
     void search_d_neighbor();
+    void save_d_n();
+    void load_d_n();
+
     void compute_all_similarity();
     int compute_one_type_qn_similarity(int i, int type_i, vector<Query_nei_similarity> &type_i_qn_similarity);
     void concat_one_type_qn(const vector<int> &dn_i_type_i, vector<int> &mVector, bool query_type);
     void intersection_neisim(vector<Nei_similarity> &nei_sim, const vector<Query_nei_similarity> &type_i_qn_similarity);
     void compute_domin_rank(vector<Nei_similarity> &qn_sim);
+    void save_all_similarity();
+    void load_all_similarity();
+    void compute_k_threshold();
+    void compute_connect_k_core(int start, int k);
+    
 
     // similarity compute
     bool check_struc_sim(int a, int b);
