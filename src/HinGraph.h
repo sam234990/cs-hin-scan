@@ -26,15 +26,16 @@ struct Vertex_neighbor
     vector<int> type_order_;
 };
 
-struct Query_neighbor_order
+struct Nei_similarity
 {
-    // vector<Query_nei_similarity> type_nei_order_;
-    // vector<int> start_offset_;
-    vector<Query_nei_similarity> type_nei_order_;
-    // int type_nei_num;
-    // vector<vector<Query_nei_similarity>> type_nei_order_;
-    // vector<int> type_nei_num;
-    // unordered_map<int, vector<Query_nei_similarity>> type_nei_order_;
+    Nei_similarity(int nei_id, float id_sim) : neighbor_id(nei_id)
+    {
+        sim_vec.push_back(id_sim);
+    }
+
+    int neighbor_id;
+    vector<float> sim_vec;
+    int domin_rank;
 };
 
 class HinGraph
@@ -67,9 +68,13 @@ private:
     int num_query_type_;
     map<int, int> distance_;
     vector<bool> cand_core_;
-    vector<vector<int>> qn_adj_List;     // qn
+    vector<vector<int>> qn_adj_List; // qn
+
+    // index variables
     vector<Vertex_neighbor> dn_adj_List; // dn
+    vector<vector<Nei_similarity>> h_sim;
     unordered_map<int, vector<int>> t_hop_visited;
+    unordered_map<int, vector<int>> empty_dn_set;
 
     // pscan variables
     vector<bool> visited_qtv_;
@@ -105,6 +110,14 @@ private:
 
     void cs_check_cluster_core_order(int u, vector<int> order_type);
 
+    // index construct
+    void search_d_neighbor();
+    void compute_all_similarity();
+    int compute_one_type_qn_similarity(int i, int type_i, vector<Query_nei_similarity> &type_i_qn_similarity);
+    void concat_one_type_qn(const vector<int> &dn_i_type_i, vector<int> &mVector, bool query_type);
+    void intersection_neisim(vector<Nei_similarity> &nei_sim, const vector<Query_nei_similarity> &type_i_qn_similarity);
+    void compute_domin_rank(vector<Nei_similarity> &qn_sim);
+
     // similarity compute
     bool check_struc_sim(int a, int b);
     int get_vertex_type(int vertex_id);
@@ -121,7 +134,6 @@ private:
 
 public:
     // index variables
-    vector<Query_neighbor_order> nei_orders_; // neighbor order with type
     ONIndex on_index_;
     map<double, int> unique_sim;
     vector<MuTree> index_tree;
@@ -132,6 +144,7 @@ public:
     void load_graph();
     void output_result(string output);
     void cs_hin_scan(string query_file, string mode);
+    void construct_index(string query_file, string option);
 };
 
 #endif

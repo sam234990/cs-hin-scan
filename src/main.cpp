@@ -79,6 +79,7 @@ int main(int argc, char const *argv[])
         g1.load_graph();
         // Call the function to build the index here
         // ...
+        g1.construct_index(idx_query_file, option);
         get_memory_usage();
     }
     else

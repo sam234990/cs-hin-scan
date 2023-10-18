@@ -233,6 +233,22 @@ void HinGraph::cs_hin_scan(string query_file, string mode)
     // count_core_vertices();
 }
 
+void HinGraph::construct_index(string query_file, string option)
+{
+    load_query_file(query_file);
+    check_dir_path(data_index_dir_);
+    initialize_query_();
+    cout << "start construct index for vertex type: " << p_query_type << endl;
+    Timer t1;
+    t1.Start();
+
+    search_d_neighbor();
+    check_empty_set();
+    t1.StopAndPrint("search k-strata time");
+    compute_all_similarity();
+    t1.StopAndPrint("compute similarity time");
+}
+
 void HinGraph::load_query_file(string query_file_path)
 {
     size_t lastSlashPos = query_file_path.find_last_of('/');
@@ -570,7 +586,6 @@ void HinGraph::baseline_query_()
         is_in_community[query_i] = true;
         if (query_i + query_type_offset_ == 401102)
             cout << "error" << endl;
-        
 
         Timer t1;
         t1.Start();
@@ -1349,6 +1364,262 @@ void HinGraph::cs_check_cluster_core_order(int u, vector<int> order_type)
     */
 }
 
+void HinGraph::search_d_neighbor()
+{
+    cout << "search_all_d_neighborhood" << endl;
+    cout << "all query type vertices number is " << num_query_type_ << endl;
+
+    vector<int> type_degree_max(5, 0);
+    vector<int> type_degree_min(5, 10);
+
+    for (int i = 0; i < num_query_type_; i++)
+    {
+        int query_vertex_id = i + query_type_offset_;
+        // cout << "query_vertex_id: " << i << " \n";
+        queue<pair<int, int>> bfs_path;
+        unordered_set<int> v_vertex;
+        bfs_path.push(make_pair(query_vertex_id, 0));
+        v_vertex.insert(query_vertex_id);
+        while (!bfs_path.empty())
+        {
+            int curVertex_id = bfs_path.front().first, cur_step = bfs_path.front().second;
+            int cur_type = get_vertex_type(curVertex_id);
+            // int cur_dis = distance_[cur_type];
+            // cout << curVertex_id << " " << cur_type << " " << cur_dis << " -- ";
+            bfs_path.pop();
+
+            dn_adj_List[i].d_neighbor_[cur_type].push_back(curVertex_id);
+            if (cur_step >= p_d)
+            { // search finish
+                continue;
+            }
+            // judge its neighbor
+            int nei_edge_start = vertex_offset_[curVertex_id];
+            int nei_end = ((curVertex_id + 1) == n) ? m : vertex_offset_[curVertex_id + 1];
+
+            for (int j = nei_edge_start; j < nei_end; j++)
+            {
+                int nei_type = edges_[j].v_type, nei_id = edges_[j].v_id;
+                if (v_vertex.find(nei_id) != v_vertex.end())
+                { // this neighbor visited before
+                    continue;
+                }
+                int nei_dis = distance_[nei_type];
+                if (nei_dis == -1)
+                { // this type neighbor is unconsidered. continue
+                    continue;
+                }
+
+                v_vertex.insert(nei_id);
+                bfs_path.push(make_pair(nei_id, cur_step + 1));
+                if (nei_dis >= 1)
+                {
+                    t_hop_visited[nei_id].push_back(query_vertex_id); // add to visited
+                }
+            }
+        }
+        for (const auto &pair : type_epsilon)
+        {
+            int type = pair.first;
+            double type_epsilon = pair.second;
+            if (type_epsilon == 0.0)
+            {
+                continue;
+            }
+            dn_adj_List[i].num_d_neighbor[type] = dn_adj_List[i].d_neighbor_[type].size();
+            if (dn_adj_List[i].d_neighbor_[type].size() == 0)
+            {
+                empty_dn_set[type].push_back(query_vertex_id);
+            }
+            else
+            {
+                sort(dn_adj_List[i].d_neighbor_[type].begin(), dn_adj_List[i].d_neighbor_[type].end());
+                // edge_num[type] += dn_adj_List[i].num_d_neighbor[type];
+                if (dn_adj_List[i].num_d_neighbor[type] > type_degree_max[type])
+                    type_degree_max[type] = dn_adj_List[i].num_d_neighbor[type];
+                if (dn_adj_List[i].num_d_neighbor[type] < type_degree_min[type])
+                    type_degree_min[type] = dn_adj_List[i].num_d_neighbor[type];
+            }
+        }
+        if (i % 100000 == 0)
+            cout << i << " -- ";
+    }
+    cout << endl;
+    for (auto &t_d : type_degree_max)
+        cout << t_d << " ";
+    cout << endl;
+    for (auto &t_d : type_degree_min)
+        cout << t_d << " ";
+    cout << endl;
+}
+
+void HinGraph::compute_all_similarity()
+{
+    cout << "compute all similarity, with the type order: ";
+    vector<int> type_order;
+    for (const auto pair : type_epsilon)
+    {
+        if (pair.second == 0)
+            continue;
+        type_order.push_back(pair.first);
+        cout << pair.first << " ";
+    }
+    cout << endl;
+    h_sim.resize(num_query_type_);
+
+    for (int i = 0; i < num_query_type_; i++)
+    {
+        vector<Nei_similarity> qn_sim;
+        for (int j = 0; j < type_order.size(); j++)
+        {
+            int type_j = type_order[j];
+            vector<Query_nei_similarity> type_j_qn_similarity;
+            compute_one_type_qn_similarity(i, type_j, type_j_qn_similarity);
+            if (j == 0)
+            {
+                qn_sim.reserve(type_j_qn_similarity.size());
+                for (const auto nei_sim : type_j_qn_similarity)
+                    qn_sim.emplace_back(Nei_similarity{nei_sim.neighbor_id, nei_sim.similarity});
+            }
+            else
+                intersection_neisim(qn_sim, type_j_qn_similarity);
+        }
+        compute_domin_rank(qn_sim);
+        h_sim[i] = move(qn_sim);
+    }
+}
+
+bool judge_demoinate(const vector<float> &vec1, const vector<float> &vec2)
+{
+    for (int i = 0; i < vec1.size(); i++)
+    {
+        if (vec1[i] < vec2[i])
+            return false;
+    }
+    return true;
+}
+
+void HinGraph::compute_domin_rank(vector<Nei_similarity> &qn_sim)
+{
+    for (int i = 0; i < qn_sim.size(); i++)
+    {
+        int domin_cnt = 0;
+        for (int j = 0; j < qn_sim.size(); j++)
+        {
+            if (i == j)
+                continue;
+            if (judge_demoinate(qn_sim[j].sim_vec, qn_sim[i].sim_vec))
+                domin_cnt++;
+        }
+        qn_sim[i].domin_rank = domin_cnt + 1;
+    }
+}
+
+void HinGraph::intersection_neisim(vector<Nei_similarity> &nei_sim, const vector<Query_nei_similarity> &vec2)
+{
+    vector<Nei_similarity> intersection;
+    intersection.reserve(nei_sim.size());
+    int i = 0; // 指向 vec1 的指针
+    int j = 0; // 指向 vec2 的指针
+
+    while (i < nei_sim.size() && j < vec2.size())
+    {
+        if (nei_sim[i].neighbor_id == vec2[j].neighbor_id)
+        {
+            nei_sim[i].sim_vec.push_back(vec2[j].similarity);
+            intersection.push_back(nei_sim[i]);
+            i++;
+            j++;
+        }
+        else if (nei_sim[i].neighbor_id < vec2[j].neighbor_id)
+        {
+            i++;
+        }
+        else
+        {
+            j++;
+        }
+    }
+    nei_sim = move(intersection);
+    return;
+}
+
+// for construct index
+int HinGraph::compute_one_type_qn_similarity(int i, int type_i, vector<Query_nei_similarity> &type_i_qn_similarity)
+{
+    vector<int> &dn_i_type_i = dn_adj_List[i].d_neighbor_[type_i];
+    if (dn_i_type_i.size() == 0)
+    {
+        if (mode_query == 0)
+            return 0;
+        type_i_qn_similarity.reserve(empty_dn_set[type_i].size());
+        for (const auto &qn_i : empty_dn_set[type_i])
+        {
+            type_i_qn_similarity.emplace_back(Query_nei_similarity{qn_i, 1.0f});
+        }
+        return empty_dn_set[type_i].size();
+    }
+
+    vector<int> mergedVector;
+    bool query_qn = (distance_[type_i] == 0);
+    concat_one_type_qn(dn_i_type_i, mergedVector, query_qn);
+
+    // computer the similarity
+    type_i_qn_similarity.reserve(mergedVector.size());
+    int prev_id = mergedVector[0], count_id_cnt = 1, all_type_i_qn = 0;
+    int len_i = dn_adj_List[i].d_neighbor_[type_i].size();
+    for (int j = 1; j < mergedVector.size(); j++)
+    {
+        if (prev_id == mergedVector[j])
+        {
+            count_id_cnt++;
+        }
+        else
+        {
+            all_type_i_qn++;
+            int len_j = dn_adj_List[prev_id - query_type_offset_].d_neighbor_[type_i].size();
+            double sim = static_cast<double>(count_id_cnt) / (len_i + len_j - count_id_cnt);
+            unique_sim[sim]++;
+            type_i_qn_similarity.emplace_back(Query_nei_similarity{prev_id, static_cast<float>(sim)});
+
+            prev_id = mergedVector[j];
+            count_id_cnt = 1;
+        }
+    }
+    int len_j = dn_adj_List[prev_id - query_type_offset_].d_neighbor_[type_i].size();
+    double sim = static_cast<double>(count_id_cnt) / (len_i + len_j - count_id_cnt);
+    all_type_i_qn++;
+    type_i_qn_similarity.emplace_back(Query_nei_similarity{prev_id, static_cast<float>(sim)});
+    unique_sim[sim]++;
+    // sort(type_i_qn_similarity.begin(), type_i_qn_similarity.end(), compareBySimilarity);
+    return all_type_i_qn;
+}
+
+void HinGraph::concat_one_type_qn(const vector<int> &dn_i_type_i, vector<int> &mVector, bool query_type)
+{
+    size_t totalSize = 0;
+    vector<int> mergedVector;
+
+    for (const auto &d_n_i : dn_i_type_i)
+    {
+        const vector<int> &induced_qn = query_type ? dn_adj_List[d_n_i - query_type_offset_].d_neighbor_[query_type] : t_hop_visited[d_n_i];
+        totalSize += induced_qn.size();
+    }
+    mergedVector.reserve(totalSize);
+    for (const auto &d_n_i : dn_i_type_i)
+    {
+        const vector<int> &induced_qn = query_type ? dn_adj_List[d_n_i - query_type_offset_].d_neighbor_[query_type] : t_hop_visited[d_n_i];
+        // const vector<int> &induced_qn = t_hop_visited[d_n_i];
+        for (const auto &induced_qn_1 : induced_qn)
+        {
+            mergedVector.push_back(induced_qn_1);
+        }
+        // mergedVector.insert(mergedVector.end(), induced_qn.begin(), induced_qn.end());
+    }
+    sort(mergedVector.begin(), mergedVector.end());
+    mVector = move(mergedVector);
+}
+
 void computeIntersection_cnt(vector<int> &vec1, const vector<int> &vec2, vector<vector<int>> &qn_cnt,
                              const vector<int> &cnt2, int type_i)
 {
@@ -1380,65 +1651,6 @@ void computeIntersection_cnt(vector<int> &vec1, const vector<int> &vec2, vector<
     qn_cnt = move(intersection_cnt);
     // return intersection;
     return;
-}
-
-void HinGraph::check_neighbor(int i)
-{
-    const Vertex_neighbor &vertex = dn_adj_List[i];
-    for (const auto &kvp : vertex.d_neighbor_)
-    {
-        int key = kvp.first;
-        const vector<int> &values = kvp.second;
-
-        set<int> uniqueValues(values.begin(), values.end());
-
-        if (values.size() != uniqueValues.size())
-        {
-            cout << "Vector in element " << i << " with key " << key << " contains duplicate numbers. " << values.size() << "--" << uniqueValues.size() << endl;
-        }
-        else
-        {
-            cout << "Vector in element " << i << " with key " << key << " does not contain duplicate numbers." << values.size() << endl;
-        }
-    }
-    return;
-    const vector<int> &qn_adj = qn_adj_List[i];
-    cout << i << " th Query Neighborhood size is : " << qn_adj.size() << " first 10 Neighbor : " << endl;
-    int count = 0;
-    bool contain_self = false;
-    for (auto it = qn_adj.begin(); it != qn_adj.end() && count < 10; ++it, ++count)
-    {
-        if (count < 10)
-            cout << *it << " ";
-        if (*it == (i + query_type_offset_))
-            contain_self = true;
-    }
-    cout << endl;
-    if (contain_self == false)
-    {
-        cout << "this vertex QN don't contain itself" << endl;
-        exit(-1);
-    }
-}
-
-void HinGraph::check_two_hop_visited()
-{
-    for (const auto &kvp : t_hop_visited)
-    {
-        int vertex_id = kvp.first;
-        int vertex_type = get_vertex_type(vertex_id);
-        const vector<int> &visited = kvp.second;
-        set<int> uniqueValues(visited.begin(), visited.end());
-
-        if (visited.size() != uniqueValues.size())
-        {
-            cout << "Vertex id: " << vertex_id << " Vertex type: " << vertex_type << " contains duplicate visited vertices. " << visited.size() << "--" << uniqueValues.size() << endl;
-        }
-        // else
-        // {
-        //     cout << "Vertex id: " << vertex_id << " Vertex type: " << vertex_type << " does not contain duplicate numbers." << visited.size() << endl;
-        // }
-    }
 }
 
 bool HinGraph::check_struc_sim(int a, int b)
@@ -1525,6 +1737,85 @@ bool HinGraph::check_one_type_sim(int a, int b, int type)
         return true;
     else
         return false;
+}
+
+void HinGraph::check_neighbor(int i)
+{
+    const Vertex_neighbor &vertex = dn_adj_List[i];
+    for (const auto &kvp : vertex.d_neighbor_)
+    {
+        int key = kvp.first;
+        const vector<int> &values = kvp.second;
+
+        set<int> uniqueValues(values.begin(), values.end());
+
+        if (values.size() != uniqueValues.size())
+        {
+            cout << "Vector in element " << i << " with key " << key << " contains duplicate numbers. " << values.size() << "--" << uniqueValues.size() << endl;
+        }
+        else
+        {
+            cout << "Vector in element " << i << " with key " << key << " does not contain duplicate numbers." << values.size() << endl;
+        }
+    }
+    return;
+    const vector<int> &qn_adj = qn_adj_List[i];
+    cout << i << " th Query Neighborhood size is : " << qn_adj.size() << " first 10 Neighbor : " << endl;
+    int count = 0;
+    bool contain_self = false;
+    for (auto it = qn_adj.begin(); it != qn_adj.end() && count < 10; ++it, ++count)
+    {
+        if (count < 10)
+            cout << *it << " ";
+        if (*it == (i + query_type_offset_))
+            contain_self = true;
+    }
+    cout << endl;
+    if (contain_self == false)
+    {
+        cout << "this vertex QN don't contain itself" << endl;
+        exit(-1);
+    }
+}
+
+void HinGraph::check_two_hop_visited()
+{
+    for (const auto &kvp : t_hop_visited)
+    {
+        int vertex_id = kvp.first;
+        int vertex_type = get_vertex_type(vertex_id);
+        const vector<int> &visited = kvp.second;
+        set<int> uniqueValues(visited.begin(), visited.end());
+
+        if (visited.size() != uniqueValues.size())
+        {
+            cout << "Vertex id: " << vertex_id << " Vertex type: " << vertex_type << " contains duplicate visited vertices. " << visited.size() << "--" << uniqueValues.size() << endl;
+        }
+        // else
+        // {
+        //     cout << "Vertex id: " << vertex_id << " Vertex type: " << vertex_type << " does not contain duplicate numbers." << visited.size() << endl;
+        // }
+    }
+}
+
+void HinGraph::check_empty_set()
+{
+    for (const auto &pair : type_epsilon)
+    {
+        int type = pair.first;
+        double type_epsilon = pair.second;
+        if (type_epsilon == 0.0 || distance_[type] < 1)
+        {
+            continue;
+        }
+        set<int> uniqueValues(empty_dn_set[type].begin(), empty_dn_set[type].end());
+
+        if (empty_dn_set[type].size() != uniqueValues.size())
+        {
+            cout << "type " << type << " empty query vertices contains duplicate numbers. " << endl;
+        }
+        cout << "type " << type << " empty query vertices number is " << empty_dn_set[type].size() << endl;
+    }
 }
 
 void HinGraph::count_core_vertices()
