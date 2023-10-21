@@ -3,8 +3,6 @@
 
 #include "utils.h"
 #include "timer.h"
-#include "MuTree.h"
-#include "ONIndex.h"
 #include "multiLevelQueue.h"
 #include <vector>
 #include <string>
@@ -28,30 +26,37 @@ struct Vertex_neighbor
 
 struct Nei_similarity
 {
-    Nei_similarity(int nei_id, float id_sim) : neighbor_id(nei_id)
+    Nei_similarity(int nei_id, float id_sim) : neighbor_i(nei_id)
     {
         sim_vec.push_back(id_sim);
     }
-    Nei_similarity() : neighbor_id(0), domin_rank(0) {}
+    Nei_similarity() : neighbor_i(0), domin_rank(0) {}
 
-    int neighbor_id;
+    int neighbor_i;
     vector<float> sim_vec;
     int domin_rank;
 };
 
+struct Query_nei_similarity
+{
+    Query_nei_similarity(int nei_id, float id_sim) : neighbor_i(nei_id), similarity(id_sim) {}
+
+    int neighbor_i;
+    float similarity;
+};
+
 struct k_threshold
 {
-    int k;
     vector<vector<float>> thres_vecs;
 };
 
 struct k_homo_adj_node
 {
-    k_homo_adj_node(int id, int off) : neighbor_i(id), h_sim_offset(off){}
+    k_homo_adj_node() : neighbor_i(0), re_type_sim(0.0) {}
+    k_homo_adj_node(int id, float sim) : neighbor_i(id), re_type_sim(sim) {}
     int neighbor_i;
-    int h_sim_offset;
+    float re_type_sim;
 };
-
 
 class HinGraph
 {
@@ -88,11 +93,12 @@ private:
     // index variables
     int k_max;
     vector<int> index_type_order;
-    vector<bool> finish_vertex;
+    vector<float> index_order_epsilon;
+    vector<bool> last_vertex;
     vector<bool> community_vertex;
     vector<Vertex_neighbor> dn_adj_List; // dn
     vector<vector<Nei_similarity>> h_sim;
-    vector<vector<k_threshold>> node_k_thres;
+    vector<unordered_map<int, k_threshold>> node_k_thres;
     unordered_map<int, vector<int>> t_hop_visited;
     unordered_map<int, vector<int>> empty_dn_set;
     vector<vector<k_homo_adj_node>> k_homo_graph;
@@ -144,8 +150,14 @@ private:
     void save_all_similarity();
     void load_all_similarity();
     void compute_k_threshold();
-    void compute_connect_k_core(int start, int k);
-    
+    void compute_connect_k_core(int k, const vector<float> &fix_type, int re_type);
+    bool search_and_add_threshold(int k, const vector<float> &fix_type, float re_type_threshold);
+    void save_k_thres_vec(int k);
+    void load_k_thres_vec(int k);
+
+    // index query
+    void index_query_();
+    bool index_judge_core(int i, int k);
 
     // similarity compute
     bool check_struc_sim(int a, int b);
@@ -163,9 +175,6 @@ private:
 
 public:
     // index variables
-    ONIndex on_index_;
-    map<double, int> unique_sim;
-    vector<MuTree> index_tree;
 
     HinGraph(string data_dir);
     ~HinGraph();
