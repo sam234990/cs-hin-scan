@@ -72,6 +72,7 @@ int main(int argc, char const *argv[])
         }
         string input_path = argv[2];
         string idx_query_file = argv[3];
+        int start_k = std::stoi(argv[4]);
         cout << "Option: -fidx" << endl;
         cout << "Input Path: " << input_path << endl;
         cout << "Index Query File: " << idx_query_file << endl;
@@ -79,7 +80,7 @@ int main(int argc, char const *argv[])
         g1.load_graph();
         // Call the function to build the index here
         // ...
-        g1.construct_index(idx_query_file, option);
+        g1.construct_index(idx_query_file, option, start_k);
         get_memory_usage();
     }
     else

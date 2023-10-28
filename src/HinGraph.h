@@ -106,7 +106,7 @@ private:
     // pscan variables
     vector<bool> visited_qtv_;
     vector<int> similar_degree;
-    vector<int> effective_degree;
+    // vector<int> effective_degree;
 
     // cs variable
     vector<vector<int>> cand_sn_list; // candidate structure neighbor
@@ -121,9 +121,9 @@ private:
     void initialize_query_();
     void reinitialize_query_();
     void baseline_query_();
-    void improved_query_();
+    // void improved_query_();
 
-    void estimate_best_order(vector<int> &order_type);
+    // void estimate_best_order(vector<int> &order_type);
 
     void print_result(bool print_all, long use_time);
 
@@ -132,10 +132,8 @@ private:
     void search_cand_sn(int u);
     void check_sn(int u, queue<int> &cs_queue, queue<int> &delete_q);
     void core_decomposition(queue<int> &delete_q);
-    void cs_check_cluster_core(int u, queue<int> &cs_node_q);
-    void explore_community(queue<int> &cs_queue);
-
-    void cs_check_cluster_core_order(int u, vector<int> order_type);
+    // void cs_check_cluster_core(int u, queue<int> &cs_node_q);
+    // void cs_check_cluster_core_order(int u, vector<int> order_type);
 
     // index construct
     void search_d_neighbor();
@@ -149,7 +147,7 @@ private:
     void compute_domin_rank(vector<Nei_similarity> &qn_sim);
     void save_all_similarity();
     void load_all_similarity();
-    void compute_k_threshold();
+    void compute_k_threshold(int start_k);
     void compute_connect_k_core(int k, const vector<float> &fix_type, int re_type);
     bool search_and_add_threshold(int k, const vector<float> &fix_type, float re_type_threshold);
     void save_k_thres_vec(int k);
@@ -158,6 +156,7 @@ private:
     // index query
     void index_query_();
     bool index_judge_core(int i, int k);
+    void select_query_node();
 
     // similarity compute
     bool check_struc_sim(int a, int b);
@@ -182,7 +181,7 @@ public:
     void load_graph();
     void output_result(string output);
     void cs_hin_scan(string query_file, string mode);
-    void construct_index(string query_file, string option);
+    void construct_index(string query_file, string option, int start_k);
 };
 
 #endif
