@@ -192,6 +192,7 @@ void HinGraph::construct_index(string query_file, string option, int start_k)
     load_query_file(query_file);
     check_dir_path(data_index_dir_);
     initialize_query_();
+    initial_construct_index();
     cout << "start construct index for vertex type: " << p_query_type << endl;
     Timer t1;
     t1.Start();
@@ -205,7 +206,15 @@ void HinGraph::construct_index(string query_file, string option, int start_k)
     // save_all_similarity();
     load_all_similarity();
     t1.StopAndPrint("compute similarity time");
-    compute_k_threshold(start_k);
+    if (option == "fidx")
+    {
+        compute_k_threshold(start_k);
+    }
+    else if (option == "fidx1")
+    {
+        improve_k_thres(start_k);
+    }
+
     return;
 }
 
@@ -401,16 +410,6 @@ void HinGraph::initialize_query_()
             }
             type_epsilon[vertex_type] = unit_epsilon_value;
             cout << vertex_type << " -> " << type_epsilon[vertex_type] << " -- ";
-            // if (distance >= 1)
-            // {
-            //     int type_start = vertex_start_map_[vertex_type];
-            //     int type_end = (vertex_type + 1) == n_types ? n : vertex_start_map_[vertex_type + 1];
-            //     // for (int j = type_start; j < type_end; j++)
-            //     // {
-            //     //     t_hop_visited[j] = vector<int>();
-            //     //     t_hop_visited.reserve(initial_vector_size);
-            //     // }
-            // }
         }
     }
     else
@@ -424,19 +423,6 @@ void HinGraph::initialize_query_()
                 distance_[vertex] = -1;
                 distance = -1;
             }
-            // cout << "Shortest distance from vertex " << p_query_type << " to vertex " << vertex << ": " << distance_[vertex] << endl;
-            // if (distance >= 1)
-            // {
-            //     int type_start = vertex_start_map_[vertex];
-            //     int type_end = (vertex + 1) == n_types ? n : vertex_start_map_[vertex + 1];
-            //     // for (int j = type_start; j < type_end; j++)
-            //     // { // create a visited set for each two neighbor
-            //     //     t_hop_visited[j] = vector<int>();
-            //     //     t_hop_visited.reserve(initial_vector_size);
-            //     // }
-            //     // cout << "create a visited unordered_set for each two neighbor :";
-            //     // cout << type_start << "-" << type_end << endl;
-            // }
         }
     }
     int min_distance = 1000;
@@ -482,6 +468,24 @@ void HinGraph::initialize_query_()
     // node_k_thres.resize(num_query_type_);
     cout << "finish initial" << endl;
     return;
+}
+
+void HinGraph::initial_construct_index()
+{
+    for (const auto &entry : distance_)
+    {
+        int vertex_type = entry.first, distance = entry.second;
+        if (distance >= 1)
+        {
+            int type_start = vertex_start_map_[vertex_type];
+            int type_end = (vertex_type + 1) == n_types ? n : vertex_start_map_[vertex_type + 1];
+            for (int j = type_start; j < type_end; j++)
+            {
+                t_hop_visited[j] = vector<int>();
+                t_hop_visited.reserve(initial_vector_size);
+            }
+        }
+    }
 }
 
 void HinGraph::reinitialize_query_()
@@ -933,140 +937,10 @@ void HinGraph::search_cand_sn(int i)
         }
     }
 }
-/*
-void HinGraph::cs_check_cluster_core(int u, queue<int> &cs_queue)
-{
-    // 1. check core
-    int vertex_u_id = u + query_type_offset_;
-    int j = 0;
-    unordered_set<int> v_vertex(qn_adj_List[u].begin(), qn_adj_List[u].end());
-    for (auto not_i : non_sn_list[u])
-        v_vertex.insert(not_i);
-
-    effective_degree[u] = cand_sn_list[u].size();
-    if (similar_degree[u] < p_mu)
-    {
-        similar_degree[u] = qn_adj_List[u].size();
-        vector<int> tmp_in_com;
-        tmp_in_com.reserve(cand_sn_list[u].size());
-        for (; j < cand_sn_list[u].size(); j++)
-        {
-            int v_id = cand_sn_list[u][j];
-            int v = v_id - query_type_offset_;
-            if ((v_vertex.find(v_id) != v_vertex.end())) // this sn has been computed before
-                continue;
-            if ((mode_query == 2) && is_in_community[v] == true)
-            {
-                tmp_in_com.push_back(v_id);
-                continue;
-            }
-            bool sim_res = check_struc_sim(u, v);
-            if (sim_res)
-            {
-                similar_degree[u]++;
-                qn_adj_List[u].push_back(v_id);
-            }
-            else
-                effective_degree[u]--;
-
-            if (visited_qtv_[v] == false && v != u)
-            {
-                if (sim_res)
-                {
-                    similar_degree[v]++;
-                    qn_adj_List[v].push_back(vertex_u_id);
-                }
-                else
-                    non_sn_list[v].push_back(vertex_u_id);
-            }
-            if (effective_degree[u] < p_mu || similar_degree[u] >= p_mu)
-                break;
-        }
-        for (auto in_v_id : tmp_in_com)
-        {
-            int v = in_v_id - query_type_offset_;
-            bool sim_res = check_struc_sim(u, v);
-            if (sim_res)
-            {
-                similar_degree[u]++;
-                qn_adj_List[u].push_back(in_v_id);
-            }
-            else
-                effective_degree[u]--;
-
-            if (visited_qtv_[v] == false && v != u)
-            {
-                if (sim_res)
-                {
-                    similar_degree[v]++;
-                    qn_adj_List[v].push_back(vertex_u_id);
-                }
-                else
-                    non_sn_list[v].push_back(vertex_u_id);
-            }
-            if (effective_degree[u] < p_mu || similar_degree[u] >= p_mu)
-                break;
-        }
-    }
-    visited_qtv_[u] = true;
-
-    // 2. cluster core
-    if (similar_degree[u] < p_mu)
-    {
-        cand_core_[u] = false;
-        return;
-    }
-    cand_core_[u] = true;
-    for (auto visit_sn_id : qn_adj_List[u])
-    {
-        int sn_i = visit_sn_id - query_type_offset_;
-        if (is_in_community[sn_i] == false)
-        {
-            is_in_community[sn_i] = true; // add into community
-            cs_queue.push(sn_i);          // add to expand queue
-        }
-    }
-    for (; j < cand_sn_list[u].size(); j++)
-    {
-        int v_id = cand_sn_list[u][j];
-        int v = v_id - query_type_offset_;
-        if (is_in_community[v] == true) // already in community
-            continue;
-        if (v_vertex.find(v_id) != v_vertex.end()) // this sn has been computed before
-            continue;
-        if (ks_visit[v] == false) // this vertex has not searched k-strata
-            search_k_strata(v);
-
-        bool sim_res = check_struc_sim(u, v);
-        if (sim_res)
-        {
-            similar_degree[u]++;
-            qn_adj_List[u].push_back(v_id);
-            if (is_in_community[v] == false)
-            {
-                is_in_community[v] = true;
-                cs_queue.push(v); // add to expand queue
-            }
-        }
-
-        if (visited_qtv_[v] == false && v != u)
-        {
-            if (sim_res)
-            {
-                similar_degree[v]++;
-                qn_adj_List[v].push_back(vertex_u_id);
-            }
-            else
-                non_sn_list[v].push_back(vertex_u_id);
-        }
-    }
-}
-*/
 
 void HinGraph::check_sn(int u, queue<int> &cs_queue, queue<int> &delete_q)
 {
     // 1. check core
-    // int vertex_u_id = u + query_type_offset_;
     unordered_set<int> v_vertex(qn_adj_List[u].begin(), qn_adj_List[u].end());
     for (auto not_i : non_sn_list[u])
         v_vertex.insert(not_i);
@@ -1168,6 +1042,7 @@ void HinGraph::core_decomposition(queue<int> &delete_q)
     }
 }
 
+// index construct
 void HinGraph::search_d_neighbor()
 {
     cout << "search_all_d_neighborhood" << endl;
@@ -1818,6 +1693,15 @@ bool HinGraph::search_and_add_threshold(int k, const vector<float> &fix_type, fl
         next_iteration = true;
     }
     return next_iteration;
+}
+
+// improve index construct
+void HinGraph::improve_k_thres(int start_k)
+{
+    cout << "start improve compute k threshold" << endl;
+    node_k_thres.resize(num_query_type_);
+    
+
 }
 
 void HinGraph::intersection_neisim(vector<Nei_similarity> &nei_sim, const vector<Query_nei_similarity> &vec2)

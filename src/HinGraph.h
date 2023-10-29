@@ -132,10 +132,9 @@ private:
     void search_cand_sn(int u);
     void check_sn(int u, queue<int> &cs_queue, queue<int> &delete_q);
     void core_decomposition(queue<int> &delete_q);
-    // void cs_check_cluster_core(int u, queue<int> &cs_node_q);
-    // void cs_check_cluster_core_order(int u, vector<int> order_type);
 
     // index construct
+    void initial_construct_index();
     void search_d_neighbor();
     void save_d_n();
     void load_d_n();
@@ -147,11 +146,15 @@ private:
     void compute_domin_rank(vector<Nei_similarity> &qn_sim);
     void save_all_similarity();
     void load_all_similarity();
+    
     void compute_k_threshold(int start_k);
     void compute_connect_k_core(int k, const vector<float> &fix_type, int re_type);
     bool search_and_add_threshold(int k, const vector<float> &fix_type, float re_type_threshold);
     void save_k_thres_vec(int k);
     void load_k_thres_vec(int k);
+    // imporve index construct
+    void improve_k_thres(int start_k);
+
 
     // index query
     void index_query_();
