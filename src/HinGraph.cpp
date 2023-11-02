@@ -2021,6 +2021,7 @@ bool HinGraph::compute_one_dim_max(int k, float re_type_threshold, vector<bool> 
         { // current community may delete
             community_del[visit[cur_i]] = true;
         }
+        // --------------- TODO update the coner point here
         add_new_th(cons, node_k_thres[cur_i][k].thres_vecs);
         for (auto nei_cur_i : k_homo_graph[cur_i])
         {
