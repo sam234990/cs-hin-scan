@@ -48,6 +48,7 @@ struct Query_nei_similarity
 struct k_threshold
 {
     vector<vector<float>> thres_vecs;
+    vector<vector<float>> corner_points;
 };
 
 struct k_homo_adj_node
@@ -146,15 +147,21 @@ private:
     void compute_domin_rank(vector<Nei_similarity> &qn_sim);
     void save_all_similarity();
     void load_all_similarity();
-    
+
     void compute_k_threshold(int start_k);
     void compute_connect_k_core(int k, const vector<float> &fix_type, int re_type);
     bool search_and_add_threshold(int k, const vector<float> &fix_type, float re_type_threshold);
     void save_k_thres_vec(int k);
     void load_k_thres_vec(int k);
+
     // imporve index construct
     void improve_k_thres(int start_k);
-
+    void skyline3D(int k);
+    void skyline2D(int k, const vector<float> cons);
+    float constraint_one_dim(int k, const vector<float> &cons, int type_i);
+    bool compute_one_dim_max(int k, float re_type_threshold, vector<bool> &inCom, const vector<float> &cons,
+                             bool del_flag, const vector<int> visit, vector<bool> &fix_vertex);
+    bool bfs_community(int start_i, vector<int> &visit, const vector<bool> fix_vertex, int community_num);
 
     // index query
     void index_query_();
@@ -166,12 +173,8 @@ private:
     int get_vertex_type(int vertex_id);
     double calculateJaccardSimilarity(const vector<int> &vec1, const vector<int> &vec2);
     bool judgeJacSim(const vector<int> &vec1, const vector<int> &vec2, double type_i_epsilon);
-    bool check_one_type_sim(int a, int b, int type);
-    bool check_struc_sim_with_order(int a, int b, const vector<int> order_type);
 
     // debug check
-    void check_neighbor(int i);
-    void check_two_hop_visited();
     void check_empty_set();
     void count_core_vertices();
 

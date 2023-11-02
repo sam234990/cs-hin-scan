@@ -1,11 +1,12 @@
 #/bin/bash
 
-# option="fidx"
+option="fidx"
 # option="qidx"
-option="q"
+# option="q"
 # option="f"
 # /mnt/data/wangshu/scan/amazon/
-datasets="DBLP_2"
+# datasets="DBLP_2"
+datasets="amazon"
 input_dir="/mnt/data/wangshu/scan/$datasets"
 output_path="/mnt/data/wangshu/scan/$datasets"
 mu_values=(2 5 10 15 20)
@@ -18,7 +19,7 @@ query_file="./$query_file_name"
 log_file="../debug_result/$datasets-${query_file_name%.txt}-$option.log"
 
 
-nohup ./cs_hin_scan -$option $input_dir $query_file \
+nohup ./cs_hin_scan -$option $input_dir $query_file 3 \
     > $log_file 2>&1 &
 
 # k_values=(3 4 5 6 7 8 9 10)
