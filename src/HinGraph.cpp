@@ -1615,11 +1615,12 @@ void HinGraph::compute_connect_k_core(int k, const vector<float> &fix_type, int 
     }
 
     // 4. compute all the remain type threshold
-    for (int i = 0; i < 101; i++)
-    {
+    for (int i = 1; i <= 101; i++)
+    { // from 0.01 to 1.01
         float re_type_threshold = i / 100.0;
         vector<float> thres_sim_vec(fix_type);
-        thres_sim_vec.push_back(re_type_threshold);
+        float thres_ = i - 1 / 100.0;
+        thres_sim_vec.push_back(thres_);
         bool iter_next = search_and_add_threshold(k, thres_sim_vec, re_type_threshold);
         if (iter_next == false)
             break;
@@ -1664,7 +1665,7 @@ bool HinGraph::search_and_add_threshold(int k, const vector<float> &thres_sim_ve
         tmp_adj.reserve(k_homo_graph[i].size());
         for (auto nei_j : k_homo_graph[i])
         {
-            if (nei_j.re_type_sim > re_type_threshold) // only retain edge great than threshold. and cureent threshold is new thres
+            if (nei_j.re_type_sim >= re_type_threshold) // only retain edge great than threshold. and cureent threshold is new thres
                 tmp_adj.push_back(nei_j);
         }
         k_homo_graph[i] = move(tmp_adj);
@@ -1764,7 +1765,6 @@ void HinGraph::improve_k_thres(int start_k)
         save_k_thres_vec(k);
     }
     t1.StopAndPrint("finsih imporve construct index: ");
-
 }
 
 void HinGraph::skyline3D(int k)
@@ -1777,6 +1777,7 @@ void HinGraph::skyline3D(int k)
     for (int i = int(d_max * 100); i >= 0; i--)
     {
         cons[2] = i / 100.0;
+        cout << float(i / 100.0) << endl;
         skyline2D(k, cons);
     }
 }
@@ -1977,18 +1978,18 @@ float HinGraph::constraint_one_dim(int k, const vector<float> &cons, int type_i)
     }
 
     // 2. compute the maximal threshold at TYPE_I dimension
-    int start = min_sim * 100, end = max_sim * 100;
-    for (int i = start; i < end + 1; i++)
-    {
+    int start = min_sim * 100 + 1, end = max_sim * 100 + 1;
+    for (int i = start; i <= end; i++)
+    { // from 0.01 to 1.01
         float re_type_threshold = i / 100.0;
         vector<float> thres(cons);
-        thres[type_i] = re_type_threshold;
+        thres[type_i] = (i - 1) / 100.0; // add the last point to the threshold
         bool iter_next = compute_one_dim_max(k, re_type_threshold, inCom, thres,
                                              type_i == 0, visit, fix_vertex);
         if (iter_next == false) // current max thres
-            return re_type_threshold;
+            return (i - 1) / 100.0;
     }
-    return 0.0;
+    return (end - 1) / 100.0;
 }
 
 void HinGraph::update_concer_point(const vector<float> &cons, k_threshold &thres_corner)
@@ -2043,7 +2044,7 @@ bool HinGraph::compute_one_dim_max(int k, float re_type_threshold, vector<bool> 
         tmp_adj.reserve(k_homo_graph[i].size());
         for (auto nei_j : k_homo_graph[i])
         {
-            if (nei_j.re_type_sim > re_type_threshold) // only retain edge great than threshold. and cureent threshold is new thres
+            if (nei_j.re_type_sim >= re_type_threshold) // only retain edge great than threshold. and cureent threshold is new thres
                 tmp_adj.push_back(nei_j);
         }
         k_homo_graph[i] = move(tmp_adj);
