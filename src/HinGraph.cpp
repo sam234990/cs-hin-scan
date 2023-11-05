@@ -1484,6 +1484,8 @@ void HinGraph::compute_k_threshold(int start_k)
     }
 
     // compute each_threshold
+    Timer t1;
+    t1.Start();
     for (int k = start_k; k <= k_max; k++)
     {
         cout << k << endl;
@@ -1514,6 +1516,7 @@ void HinGraph::compute_k_threshold(int start_k)
         }
         save_k_thres_vec(k);
     }
+    t1.StopAndPrint("finsih construct index: ");
 }
 
 bool judge_fix_type_edge(const vector<float> &sim_vec, const vector<float> &fix_type)
@@ -1752,12 +1755,16 @@ void HinGraph::improve_k_thres(int start_k)
     for (int i = 0; i < num_query_type_; i++)
         k_homo_graph[i].reserve(h_sim[i].size());
 
+    Timer t1;
+    t1.Start();
     for (int k = start_k; k <= k_max; k++)
     {
         cout << k << endl;
         skyline3D(k);
         save_k_thres_vec(k);
     }
+    t1.StopAndPrint("finsih imporve construct index: ");
+
 }
 
 void HinGraph::skyline3D(int k)
@@ -1871,6 +1878,7 @@ float HinGraph::constraint_one_dim(int k, const vector<float> &cons, int type_i)
         float search_sim = compute_search_sim(cons, type_i, node_k_thres[i][k].corner_points);
         for (const auto &nei_i : h_sim[i])
         {
+            // TODO: here need to recheck the inCom flag or not.
             if (inCom[nei_i.neighbor_i] == false)
                 continue;
             if (judge_demoinate(nei_i.sim_vec, cons) == false)
@@ -1884,8 +1892,8 @@ float HinGraph::constraint_one_dim(int k, const vector<float> &cons, int type_i)
         if (coreNum[i] < k)
         {
             delete_q.push(i);
-            inCom[i] = false;
-            fix_vertex[i] = false;
+            // inCom[i] = false;
+            // fix_vertex[i] = false;
         }
     }
 
@@ -1894,7 +1902,7 @@ float HinGraph::constraint_one_dim(int k, const vector<float> &cons, int type_i)
     {
         int cur_i = delete_q.front();
         delete_q.pop();
-        inCom[cur_i] = false;
+        inCom[cur_i] = false; // label not in current search
         fix_vertex[cur_i] = false;
         coreNum[cur_i] = 0;
         for (const auto &nei_cur_i : k_homo_graph[cur_i])
@@ -1929,7 +1937,8 @@ float HinGraph::constraint_one_dim(int k, const vector<float> &cons, int type_i)
         }
         if (tmp_adj.size() != coreNum[i])
         {
-            cout << " error " << endl;
+            cout << i << " error " << endl;
+            cout << tmp_adj.size() << " " << coreNum[i] << endl;
             exit(-1);
         }
         k_homo_graph[i] = move(tmp_adj);
@@ -2007,7 +2016,7 @@ void HinGraph::update_concer_point(const vector<float> &cons, k_threshold &thres
             tmp_concers.push_back(new_concer);
         }
         if (old_concer[0] <= new_concer[0])
-        {// this concer point is dominate by the new one
+        { // this concer point is dominate by the new one
             continue;
         }
         tmp_concers.push_back(old_concer);
@@ -2059,7 +2068,6 @@ bool HinGraph::compute_one_dim_max(int k, float re_type_threshold, vector<bool> 
         { // current community may delete
             community_del[visit[cur_i]] = true;
         }
-        // --------------- TODO update the coner point here
         // add_new_th(cons, node_k_thres[cur_i][k].thres_vecs);
         update_concer_point(cons, node_k_thres[cur_i][k]);
         for (auto nei_cur_i : k_homo_graph[cur_i])
