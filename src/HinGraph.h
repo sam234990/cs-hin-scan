@@ -48,7 +48,7 @@ struct Query_nei_similarity
 struct k_threshold
 {
     vector<vector<float>> thres_vecs;
-    vector<vector<float>> corner_points;
+    vector<vector<float>> corner_points; // contain the thres of dim0 and dim1, sort by the descending order of dim1
 };
 
 struct k_homo_adj_node
@@ -158,6 +158,7 @@ private:
     void improve_k_thres(int start_k);
     void skyline3D(int k);
     void skyline2D(int k, const vector<float> cons);
+    void update_concer_point(const vector<float> &cons, k_threshold &thres_corner);
     float constraint_one_dim(int k, const vector<float> &cons, int type_i);
     bool compute_one_dim_max(int k, float re_type_threshold, vector<bool> &inCom, const vector<float> &cons,
                              bool del_flag, const vector<int> visit, vector<bool> &fix_vertex);

@@ -1982,6 +1982,44 @@ float HinGraph::constraint_one_dim(int k, const vector<float> &cons, int type_i)
     return 0.0;
 }
 
+void HinGraph::update_concer_point(const vector<float> &cons, k_threshold &thres_corner)
+{
+    add_new_th(cons, thres_corner.thres_vecs);
+    vector<float> new_concer(cons.begin(), cons.begin() + 2);
+    if (thres_corner.corner_points.size() == 0)
+    {
+        thres_corner.corner_points.push_back(new_concer);
+        return;
+    }
+    vector<vector<float>> tmp_concers;
+    tmp_concers.reserve(thres_corner.corner_points.size() + 1);
+    bool new_insert_flag = false;
+    for (auto &old_concer : thres_corner.corner_points)
+    {
+        if (old_concer[1] > new_concer[1])
+        {
+            tmp_concers.push_back(old_concer);
+            continue; // this concer point is located at the front of the new one
+        }
+        if (new_insert_flag == false)
+        {
+            new_insert_flag = true;
+            tmp_concers.push_back(new_concer);
+        }
+        if (old_concer[0] <= new_concer[0])
+        {// this concer point is dominate by the new one
+            continue;
+        }
+        tmp_concers.push_back(old_concer);
+    }
+    if (new_insert_flag == false)
+    {
+        tmp_concers.push_back(new_concer);
+    }
+    thres_corner.corner_points = move(tmp_concers);
+    return;
+}
+
 bool HinGraph::compute_one_dim_max(int k, float re_type_threshold, vector<bool> &InCom, const vector<float> &cons,
                                    bool del_flag, const vector<int> visit, vector<bool> &fix_vertex)
 {
@@ -2022,7 +2060,8 @@ bool HinGraph::compute_one_dim_max(int k, float re_type_threshold, vector<bool> 
             community_del[visit[cur_i]] = true;
         }
         // --------------- TODO update the coner point here
-        add_new_th(cons, node_k_thres[cur_i][k].thres_vecs);
+        // add_new_th(cons, node_k_thres[cur_i][k].thres_vecs);
+        update_concer_point(cons, node_k_thres[cur_i][k]);
         for (auto nei_cur_i : k_homo_graph[cur_i])
         {
             if (coreNum[nei_cur_i.neighbor_i] >= k)
