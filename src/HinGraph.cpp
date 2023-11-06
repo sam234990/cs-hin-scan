@@ -206,6 +206,14 @@ void HinGraph::construct_index(string query_file, string option, int start_k)
     // save_all_similarity();
     load_all_similarity();
     t1.StopAndPrint("compute similarity time");
+    node_k_thres.resize(num_query_type_);
+    for (int i = 0; i < num_query_type_; i++)
+    {
+        node_k_thres[i].thres_vecs.reserve(initial_vector_size);
+        node_k_thres[i].corner_points.reserve(initial_vector_size);
+        node_k_thres[i].fix_thres = vector<bool>(100, false);
+    }
+
     if (option == "-fidx")
     {
         compute_k_threshold(start_k);
@@ -466,7 +474,6 @@ void HinGraph::initialize_query_()
     similar_degree.resize(num_query_type_);
     // effective_degree.resize(num_query_type_);
     cand_core_.resize(num_query_type_);
-    // node_k_thres.resize(num_query_type_);
     cout << "finish initial" << endl;
     return;
 }
@@ -791,7 +798,7 @@ bool HinGraph::index_judge_core(int i, int k)
     // {
     //     return false;
     // }
-    for (const auto &t_v : node_k_thres[i][k].thres_vecs)
+    for (const auto &t_v : node_k_thres[i].thres_vecs)
     {
         if (judge_demoinate(t_v, index_order_epsilon))
         {
@@ -1401,26 +1408,15 @@ void HinGraph::compute_domin_rank(vector<Nei_similarity> &qn_sim)
 
 bool generate_next_fix_thres(vector<float> &fix_type_thresold, vector<int> &fix_)
 { // remain_type is last dim, and first type is 1 in fix_type_threshold
-    // fix_[0] += 1;
-    // for (int i = 0; i < fix_.size(); i++)
-    // {
-    //     if ((fix_[i] == 100) && i != fix_.size() - 1)
-    //     {
-    //         fix_[i] = 0;
-    //         fix_[i + 1] += 1;
-    //     }
-    //     if (i == fix_.size() - 1 && fix_[i] == 100)
-    //         return true;
-    // }
     fix_[fix_.size() - 1] += 1;
     for (int i = fix_.size() - 1; i >= 0; i--)
     {
-        if ((fix_[i] == 100) && i != 0)
+        if ((fix_[i] == 101) && i != 0)
         {
             fix_[i] = 0;
             fix_[i - 1] += 1;
         }
-        if (i == 0 && fix_[i] == 100)
+        if (i == 0 && fix_[i] == 101)
             return true;
     }
     for (int i = 0; i < fix_.size(); i++)
@@ -1459,27 +1455,20 @@ void HinGraph::compute_k_threshold(int start_k)
     // p_mu = 1, 2 it contain itself and dominated value.
     if (start_k == -1)
     {
-        for (int i = 0; i < num_query_type_; i++)
+        for (int k = 1; k <= 2; k++)
         {
-            node_k_thres[i].reserve(h_sim[i].size());
-            for (int k = 1; k <= 2; k++)
+            for (int i = 0; i < num_query_type_; i++)
             {
                 if (h_sim[i].size() < k)
                     continue;
-                if (k == 1 || k == 2)
+                for (auto &nei_i : h_sim[i])
                 {
-                    k_threshold tmp;
-                    for (int j = 0; j < h_sim[i].size(); j++)
-                    {
-                        if (h_sim[i][j].domin_rank == k)
-                            tmp.thres_vecs.push_back(h_sim[i][j].sim_vec);
-                    }
-                    node_k_thres[i][k] = move(tmp);
+                    if (nei_i.domin_rank == k)
+                        node_k_thres[i].thres_vecs.push_back(nei_i.sim_vec);
                 }
             }
+            save_k_thres_vec(k);
         }
-        save_k_thres_vec(1);
-        save_k_thres_vec(2);
         start_k = 3;
     }
 
@@ -1619,7 +1608,7 @@ void HinGraph::compute_connect_k_core(int k, const vector<float> &fix_type, int 
     { // from 0.01 to 1.01
         float re_type_threshold = i / 100.0;
         vector<float> thres_sim_vec(fix_type);
-        float thres_ = i - 1 / 100.0;
+        float thres_ = (i - 1) / 100.0;
         thres_sim_vec.push_back(thres_);
         bool iter_next = search_and_add_threshold(k, thres_sim_vec, re_type_threshold);
         if (iter_next == false)
@@ -1643,10 +1632,6 @@ void add_new_th(const vector<float> thres_sim_vec, vector<vector<float>> &old_th
         if (judge_demoinate(thres_sim_vec, old_vec))
             continue;
         tmp.push_back(old_vec); // old thres vec is not dominate by new one
-    }
-    if (tmp.size() == old_thres_vecs.size())
-    { // new thres_sim_vec cannot add to threshold
-        return;
     }
     tmp.push_back(thres_sim_vec);
     old_thres_vecs = move(tmp);
@@ -1684,7 +1669,7 @@ bool HinGraph::search_and_add_threshold(int k, const vector<float> &thres_sim_ve
         int cur_i = delete_q.front();
         delete_q.pop();
         community_vertex[cur_i] = false;
-        add_new_th(thres_sim_vec, node_k_thres[cur_i][k].thres_vecs);
+        add_new_th(thres_sim_vec, node_k_thres[cur_i].thres_vecs);
         for (auto nei_cur_i : k_homo_graph[cur_i])
         {
             if (coreNum[nei_cur_i.neighbor_i] >= k)
@@ -1720,6 +1705,29 @@ bool HinGraph::search_and_add_threshold(int k, const vector<float> &thres_sim_ve
     return next_iteration;
 }
 
+bool judge_geq_from_start(const vector<float> &vec1, const vector<float> &vec2, int start)
+{ // return vec1[start] >= vec2 or not -- True: vec1 >= vec2
+    for (int i = start; i < vec1.size(); i++)
+    {
+        if (vec1[i] < vec2[i])
+            return false;
+    }
+    return true;
+}
+
+bool judge_new_edge(const vector<float> sim_vec, const vector<vector<float>> corner_points)
+{
+    int last = corner_points.size() - 1;
+    if ((sim_vec[1] > corner_points[0][1]) || (sim_vec[0] > corner_points[last][0]))
+        return true;
+    for (auto &cp : corner_points)
+    {
+        if ((cp[1] < sim_vec[1]) && (cp[0] < sim_vec[0]))
+            return true;
+    }
+    return false;
+}
+
 // improve index construct
 void HinGraph::improve_k_thres(int start_k)
 {
@@ -1728,27 +1736,20 @@ void HinGraph::improve_k_thres(int start_k)
     // p_mu = 1, 2 it contain itself and use the dominated value.
     if (start_k == -1)
     {
-        for (int i = 0; i < num_query_type_; i++)
+        for (int k = 1; k <= 2; k++)
         {
-            node_k_thres[i].reserve(h_sim[i].size());
-            for (int k = 1; k <= 2; k++)
+            for (int i = 0; i < num_query_type_; i++)
             {
                 if (h_sim[i].size() < k)
                     continue;
-                if (k == 1 || k == 2)
+                for (auto &nei_i : h_sim[i])
                 {
-                    k_threshold tmp;
-                    for (int j = 0; j < h_sim[i].size(); j++)
-                    {
-                        if (h_sim[i][j].domin_rank == k)
-                            tmp.thres_vecs.push_back(h_sim[i][j].sim_vec);
-                    }
-                    node_k_thres[i][k] = move(tmp);
+                    if (nei_i.domin_rank == k)
+                        node_k_thres[i].thres_vecs.push_back(nei_i.sim_vec);
                 }
             }
+            save_k_thres_vec(k);
         }
-        save_k_thres_vec(1);
-        save_k_thres_vec(2);
         start_k = 3;
     }
 
@@ -1782,41 +1783,65 @@ void HinGraph::skyline3D(int k)
     }
 }
 
-void HinGraph::skyline2D(int k, const vector<float> cons)
+bool SelectConsVertex(const vector<vector<float>> &k_threshold, const vector<float> &cons, int start_type)
 {
-    float d1_max;
-    d1_max = constraint_one_dim(k, cons, 1);
-    for (int i = int(d1_max * 100); i >= 0; i--)
-    {
-        vector<float> cons_1(cons);
-        cons_1[1] = i / 100.0;
-        constraint_one_dim(k, cons_1, 0);
-    }
-}
-
-bool SelectConsVertex(const vector<vector<float>> &k_threshold, const vector<float> &cons)
-{
+    int end_type = cons.size();
     for (const auto &thres : k_threshold)
     {
-        if (judge_demoinate(thres, cons))
+        bool flag = true;
+        for (int i = start_type; i < end_type; i++)
+        {
+            if (thres[i] < cons[i])
+                flag = false;
+        }
+        if (flag == true)
             return true;
     }
     return false;
 }
 
-float compute_search_sim(const vector<float> cons, int dim_type, const vector<vector<float>> corner_points)
-{ // only when compute max sim at dim0 , need to find out minium search output.
-    if (dim_type != 2)
-        return 0.0;
-    float min_sim = 0.0;
-    for (const auto point : corner_points)
+void HinGraph::skyline2D(int k, const vector<float> cons)
+{
+    // 1. check any NEW_EDGE under cons(fix node). if not continue current the d1 dimension.
+    //  1.1 select the node under cons
+    for (int i = 0; i < num_query_type_; i++)
+        if (SelectConsVertex(node_k_thres[i].thres_vecs, cons, 2) == true)
+            last_vertex[i] = true;
+        else
+            last_vertex[i] = false;
+    // 1.2 compute the fix node and corresponding d1 threshold
+    vector<bool> compute_d1_thres(100, false);
+    for (int i = 0; i < num_query_type_; i++)
     {
-        if (point[1] < cons[1])
-            break;
-        if (point[0] > min_sim)
-            min_sim = point[0];
+        if (last_vertex[i] == false)
+            continue;
+        node_k_thres[i].fix_thres = vector<bool>(100, false);
+        for (const auto &nei_i : h_sim[i])
+        {
+            if (last_vertex[nei_i.neighbor_i] == false)
+                continue;
+            if (judge_geq_from_start(nei_i.sim_vec, cons, 2) == false)
+                continue;
+            if (judge_new_edge(nei_i.sim_vec, node_k_thres[i].corner_points) == true)
+            {
+                int new_fix_thres = nei_i.sim_vec[1] * 100;
+                node_k_thres[i].fix_thres[new_fix_thres] = true; // maybe a new fix_thres
+                if (compute_d1_thres[new_fix_thres] == false)
+                    compute_d1_thres[new_fix_thres] = true;
+            }
+        }
     }
-    return min_sim;
+
+    float d1_max;
+    d1_max = constraint_one_dim(k, cons, 1);
+    vector<float> cons_1(cons);
+    for (int i = int(d1_max * 100); i >= 0; i--)
+    {
+        if (compute_d1_thres[i] == false) // current threshold not contain new edge
+            continue;
+        cons_1[1] = i / 100.0;
+        constraint_one_dim(k, cons_1, 0);
+    }
 }
 
 bool HinGraph::bfs_community(int start_i, vector<int> &visit, const vector<bool> fix_vertex, int community_num)
@@ -1828,10 +1853,10 @@ bool HinGraph::bfs_community(int start_i, vector<int> &visit, const vector<bool>
     while (!bfs_q.empty())
     {
         int cur_i = bfs_q.front();
+        bfs_q.pop();
         if (flag_del == true && fix_vertex[cur_i] == true) // contain fix vertex. cannot delete
             flag_del = false;
 
-        bfs_q.pop();
         for (const auto &nei_i : k_homo_graph[cur_i])
         {
             if (visit[nei_i.neighbor_i] == 0)
@@ -1848,7 +1873,6 @@ float HinGraph::constraint_one_dim(int k, const vector<float> &cons, int type_i)
 {
     // 1. select the k-core vertex under cons
     vector<int> coreNum(num_query_type_, 0);         // core Number
-    vector<bool> inCom(num_query_type_, false);      // core vertex under current cons
     vector<bool> fix_vertex(num_query_type_, false); // update vertex under current cons
     bool allzero_ = std::all_of(cons.begin(), cons.end(), [](float val)
                                 { return val == 0.0f; });
@@ -1856,45 +1880,56 @@ float HinGraph::constraint_one_dim(int k, const vector<float> &cons, int type_i)
     if (allzero_ == false)
     {
         for (int i = 0; i < num_query_type_; i++)
-            if (SelectConsVertex(node_k_thres[i][k].thres_vecs, cons) == true)
-                inCom[i] = true;
+        {
+            if (last_vertex[i] == false)
+            { // not a community vertex -- judge by the skyline2D
+                community_vertex[i] = false;
+                continue;
+            }
+            if (SelectConsVertex(node_k_thres[i].thres_vecs, cons, type_i + 1) == true)
+                community_vertex[i] = true;
+            else
+                community_vertex[i] = false;
+        }
     }
     else
     {
         vector<float> initial_corner_point(2, 0.0);
         for (int i = 0; i < num_query_type_; i++)
         {
-            inCom[i] = true;
-            node_k_thres[i][k].corner_points.reserve(initial_vector_size);
-            node_k_thres[i][k].corner_points.push_back(initial_corner_point);
+            community_vertex[i] = true;
+            node_k_thres[i].corner_points.push_back(initial_corner_point);
         }
+    }
+
+    bool flag_fix = (type_i == 0);
+    int fix_vertex_thres_ = 0;
+    if (flag_fix)
+    {
+        fix_vertex_thres_ = int(cons[1] * 100);
     }
 
     queue<int> delete_q;
     for (int i = 0; i < num_query_type_; i++)
     {
-        if (inCom[i] == false)
+        if (community_vertex[i] == false)
             continue;
         k_homo_graph[i].clear();
-        float search_sim = compute_search_sim(cons, type_i, node_k_thres[i][k].corner_points);
         for (const auto &nei_i : h_sim[i])
         {
-            // TODO: here need to recheck the inCom flag or not.
-            if (inCom[nei_i.neighbor_i] == false)
+            if (community_vertex[nei_i.neighbor_i] == false)
                 continue;
             if (judge_demoinate(nei_i.sim_vec, cons) == false)
                 continue;
             float sim_type_i = nei_i.sim_vec[type_i];
             k_homo_graph[i].push_back(k_homo_adj_node(nei_i.neighbor_i, sim_type_i));
-            if (type_i == 0 && fix_vertex[i] == false && sim_type_i > search_sim)
-                fix_vertex[i] = true; // check fix vertex
         }
+        if (flag_fix && node_k_thres[i].fix_thres[fix_vertex_thres_] == true)
+            fix_vertex[i] = true; // this veretex may be the fix vertex
         coreNum[i] = k_homo_graph[i].size();
         if (coreNum[i] < k)
         {
             delete_q.push(i);
-            // inCom[i] = false;
-            // fix_vertex[i] = false;
         }
     }
 
@@ -1903,8 +1938,9 @@ float HinGraph::constraint_one_dim(int k, const vector<float> &cons, int type_i)
     {
         int cur_i = delete_q.front();
         delete_q.pop();
-        inCom[cur_i] = false; // label not in current search
-        fix_vertex[cur_i] = false;
+        community_vertex[cur_i] = false; // label not in current search
+        if (flag_fix)
+            fix_vertex[cur_i] = false;
         coreNum[cur_i] = 0;
         for (const auto &nei_cur_i : k_homo_graph[cur_i])
         {
@@ -1915,19 +1951,20 @@ float HinGraph::constraint_one_dim(int k, const vector<float> &cons, int type_i)
                     delete_q.push(nei_cur_i.neighbor_i);
             }
         }
-        k_homo_graph[cur_i].clear();
+        // k_homo_graph[cur_i].clear();
     }
 
+    // 1.3 get connect k-core
     float min_sim = 1.0, max_sim = 0.0;
     for (int i = 0; i < num_query_type_; i++)
     {
-        if (inCom[i] == false)
+        if (community_vertex[i] == false)
             continue;
         vector<k_homo_adj_node> tmp_adj;
         tmp_adj.reserve(coreNum[i]);
         for (const auto &nei : k_homo_graph[i])
         {
-            if (inCom[nei.neighbor_i] == true)
+            if (community_vertex[nei.neighbor_i] == true)
             {
                 tmp_adj.push_back(nei);
                 if (nei.re_type_sim < min_sim)
@@ -1947,7 +1984,7 @@ float HinGraph::constraint_one_dim(int k, const vector<float> &cons, int type_i)
 
     // ---- prune the subgraph no need to compute.
     vector<int> visit(num_query_type_, 0);
-    if (type_i == 0)
+    if (flag_fix)
     {
         int community_max = num_query_type_ / k;
         vector<bool> community_del(community_max, false);
@@ -1959,22 +1996,21 @@ float HinGraph::constraint_one_dim(int k, const vector<float> &cons, int type_i)
             {
                 if (community_del[visit[i]] == true)
                 { // current community not contain fix node. delete it
-                    inCom[i] = false;
-                    k_homo_graph[i].clear();
+                    community_vertex[i] = false;
                 }
                 continue;
             }
-            if (inCom[i] == false)
+            if (community_vertex[i] == false)
                 continue;
             bool flag_del = bfs_community(i, visit, fix_vertex, community_num);
             if (flag_del == true)
             { // current community not contain fix node. delete it
                 community_del[community_num] = true;
-                inCom[i] = false;
-                k_homo_graph[i].clear();
+                community_vertex[i] = false;
             }
             community_num++;
         }
+        all_community_num = community_num;
     }
 
     // 2. compute the maximal threshold at TYPE_I dimension
@@ -1984,61 +2020,111 @@ float HinGraph::constraint_one_dim(int k, const vector<float> &cons, int type_i)
         float re_type_threshold = i / 100.0;
         vector<float> thres(cons);
         thres[type_i] = (i - 1) / 100.0; // add the last point to the threshold
-        bool iter_next = compute_one_dim_max(k, re_type_threshold, inCom, thres,
-                                             type_i == 0, visit, fix_vertex);
+        bool iter_next = compute_one_dim_max(k, re_type_threshold, thres,
+                                             type_i, visit, fix_vertex);
         if (iter_next == false) // current max thres
             return (i - 1) / 100.0;
     }
     return (end - 1) / 100.0;
 }
 
-void HinGraph::update_concer_point(const vector<float> &cons, k_threshold &thres_corner)
+bool compareCorners(const vector<float> &a, const vector<float> &b)
 {
+    if (a[1] > b[1]) // Compare based on the dim1 , in descending order
+        return true;
+    else if (a[1] < b[1])
+        return false;
+
+    return a[0] > b[0]; // compare based on the dim0, in descending order
+}
+
+// void HinGraph::update_concer_point(const vector<float> &cons, k_threshold &thres_corner, int type_i)
+void update_concer_point(const vector<float> &cons, k_threshold &thres_corner, int type_i)
+{
+    // 1. update threshold
+    if (thres_corner.thres_vecs.size() == 0)
+    {
+        thres_corner.thres_vecs.push_back(cons);
+    }
+    else
+    {
+        if (type_i == 0)
+        { // type 0 only update with the new threshold
+            add_new_th(cons, thres_corner.thres_vecs);
+        }
+        else
+        {
+            vector<vector<float>> tmp;
+            tmp.reserve(thres_corner.thres_vecs.size());
+            for (auto &old_vec : thres_corner.thres_vecs)
+            {
+                if (judge_demoinate(cons, old_vec))
+                    continue;
+                tmp.push_back(old_vec); // old thres vec is not dominate by new one
+            }
+            if (tmp.size() == thres_corner.thres_vecs.size())
+            { // new thres_sim_vec cannot add to threshold
+                return;
+            }
+            tmp.push_back(cons);
+            thres_corner.thres_vecs = move(tmp);
+        }
+    }
     add_new_th(cons, thres_corner.thres_vecs);
-    vector<float> new_concer(cons.begin(), cons.begin() + 2);
-    if (thres_corner.corner_points.size() == 0)
-    {
-        thres_corner.corner_points.push_back(new_concer);
+    // 2. update corner point;
+    if (type_i != 0) // only update the corner point when dim0
         return;
-    }
-    vector<vector<float>> tmp_concers;
-    tmp_concers.reserve(thres_corner.corner_points.size() + 1);
-    bool new_insert_flag = false;
-    for (auto &old_concer : thres_corner.corner_points)
+    vector<float> new_thres(cons.begin(), cons.begin() + 2);
+
+    vector<vector<float>> tmp_corners;
+    tmp_corners.reserve(2 * thres_corner.corner_points.size());
+    for (auto &&old_corner : thres_corner.corner_points)
     {
-        if (old_concer[1] > new_concer[1])
+        if (old_corner[1] < new_thres[1] && old_corner[0] < new_thres[0])
+        { // this corner is be dominated by the new theshold
+            vector<float> add_corner1(old_corner);
+            vector<float> add_corner0(old_corner);
+            add_corner0[0] = new_thres[0];
+            add_corner1[1] = new_thres[1];
+            tmp_corners.push_back(add_corner1);
+            tmp_corners.push_back(add_corner0);
+        }
+        else
         {
-            tmp_concers.push_back(old_concer);
-            continue; // this concer point is located at the front of the new one
+            tmp_corners.push_back(old_corner);
         }
-        if (new_insert_flag == false)
-        {
-            new_insert_flag = true;
-            tmp_concers.push_back(new_concer);
-        }
-        if (old_concer[0] <= new_concer[0])
-        { // this concer point is dominate by the new one
-            continue;
-        }
-        tmp_concers.push_back(old_concer);
     }
-    if (new_insert_flag == false)
+    sort(tmp_corners.begin(), tmp_corners.end(), compareCorners);
+    vector<vector<float>> tmp_2;
+    tmp_2.reserve(tmp_corners.size());
+    for (int i = 0; i < tmp_corners.size(); i++)
     {
-        tmp_concers.push_back(new_concer);
+        bool add_flag = true;
+        for (int j = i + 1; j < tmp_corners.size(); j++)
+        {
+            if (judge_demoinate(tmp_corners[i], tmp_corners[j]) == true)
+            {
+                add_flag = false;
+                break;
+            }
+        }
+        if (add_flag == true)
+            tmp_2.push_back(tmp_corners[i]);
     }
-    thres_corner.corner_points = move(tmp_concers);
+
+    thres_corner.corner_points = move(tmp_2);
     return;
 }
 
-bool HinGraph::compute_one_dim_max(int k, float re_type_threshold, vector<bool> &InCom, const vector<float> &cons,
-                                   bool del_flag, const vector<int> visit, vector<bool> &fix_vertex)
+bool HinGraph::compute_one_dim_max(int k, float re_type_threshold, const vector<float> &cons,
+                                   int type_i, const vector<int> visit, vector<bool> &fix_vertex)
 {
     // 1. compute core number
     queue<int> delete_q;
     vector<int> coreNum(num_query_type_, 0); // core Number
     for (int i = 0; i < num_query_type_; i++)
     {
-        if (InCom[i] == false) // this vertex has not in current graph
+        if (community_vertex[i] == false) // this vertex has not in current graph
             continue;
         vector<k_homo_adj_node> tmp_adj;
         tmp_adj.reserve(k_homo_graph[i].size());
@@ -2050,27 +2136,24 @@ bool HinGraph::compute_one_dim_max(int k, float re_type_threshold, vector<bool> 
         k_homo_graph[i] = move(tmp_adj);
         if (k_homo_graph[i].size() < k)
         { // current vertex cannot be a core at current threshold
-            InCom[i] = false;
             delete_q.push(i);
         }
         coreNum[i] = k_homo_graph[i].size();
     }
 
     // 2. core decomposition
-    int community_max = num_query_type_ / k;
-    vector<bool> community_del(community_max, false);
-
+    vector<bool> community_del(all_community_num, false);
+    bool fix_ = (type_i == 0);
     while (!delete_q.empty())
     {
         int cur_i = delete_q.front();
         delete_q.pop();
-        InCom[cur_i] = false;
-        if (del_flag == true && fix_vertex[cur_i] == true)
+        community_vertex[cur_i] = false;
+        if (fix_ && fix_vertex[cur_i] == true)
         { // current community may delete
             community_del[visit[cur_i]] = true;
         }
-        // add_new_th(cons, node_k_thres[cur_i][k].thres_vecs);
-        update_concer_point(cons, node_k_thres[cur_i][k]);
+        update_concer_point(cons, node_k_thres[cur_i], type_i);
         for (auto nei_cur_i : k_homo_graph[cur_i])
         {
             if (coreNum[nei_cur_i.neighbor_i] >= k)
@@ -2086,9 +2169,9 @@ bool HinGraph::compute_one_dim_max(int k, float re_type_threshold, vector<bool> 
     bool next_iteration = false;
     for (int i = 0; i < num_query_type_; i++)
     {
-        if (InCom[i] == false)
+        if (community_vertex[i] == false)
             continue; // not core vertex
-        if (del_flag == true && fix_vertex[i] == true)
+        if (type_i == 0 && fix_vertex[i] == true)
         { // current community should remain
             community_del[visit[i]] = false;
         }
@@ -2097,7 +2180,7 @@ bool HinGraph::compute_one_dim_max(int k, float re_type_threshold, vector<bool> 
         tmp_adj.reserve(coreNum[i]);
         for (auto &nei : k_homo_graph[i])
         {
-            if (InCom[nei.neighbor_i] == true)
+            if (community_vertex[nei.neighbor_i] == true)
                 tmp_adj.push_back(nei);
         }
         if (tmp_adj.size() != coreNum[i])
@@ -2111,17 +2194,27 @@ bool HinGraph::compute_one_dim_max(int k, float re_type_threshold, vector<bool> 
         k_homo_graph[i] = move(tmp_adj);
         next_iteration = true;
     }
-    if (del_flag == true)
+
+    bool del_c_flag = false;
+    for (int i = 0; i < community_del.size(); i++)
+    {
+        if (community_del[i] == true)
+        {
+            del_c_flag = true;
+            break;
+        }
+    }
+
+    if (fix_ && del_c_flag)
     {
         next_iteration = false;
         for (int i = 0; i < num_query_type_; i++)
         {
-            if (InCom[i] == false)
+            if (community_vertex[i] == false)
                 continue;
             if (community_del[visit[i]] == true)
             {
-                InCom[i] = false;
-                k_homo_graph[i].clear();
+                community_vertex[i] = false;
             }
             else
             {
@@ -2248,8 +2341,8 @@ void HinGraph::save_k_thres_vec(int k)
     k_thres_file << num_query_type_ << " " << k << " " << index_type_order.size() << endl;
     for (int i = 0; i < num_query_type_; i++)
     {
-        k_thres_file << i << " " << node_k_thres[i][k].thres_vecs.size() << endl;
-        for (const auto &thres_vec : node_k_thres[i][k].thres_vecs)
+        k_thres_file << i << " " << node_k_thres[i].thres_vecs.size() << endl;
+        for (const auto &thres_vec : node_k_thres[i].thres_vecs)
         {
             for (const auto &vec_i : thres_vec)
             {
@@ -2257,6 +2350,7 @@ void HinGraph::save_k_thres_vec(int k)
             }
             k_thres_file << endl;
         }
+        node_k_thres[i].thres_vecs.clear();
     }
     cout << "finish save threshold vector " << k << endl;
 }
@@ -2292,13 +2386,13 @@ void HinGraph::load_k_thres_vec(int k)
             cerr << "Error: Incompatible data found for query type " << i << " in k_thres file." << endl;
             return;
         }
-        node_k_thres[i][k].thres_vecs.resize(num_i_tv);
+        node_k_thres[i].thres_vecs.resize(num_i_tv);
         for (int j = 0; j < num_i_tv; j++)
         {
-            node_k_thres[i][k].thres_vecs[j].resize(num_index_types);
+            node_k_thres[i].thres_vecs[j].resize(num_index_types);
             for (int vec_i = 0; vec_i < num_index_types; vec_i++)
             {
-                k_thres_file >> node_k_thres[i][k].thres_vecs[j][vec_i];
+                k_thres_file >> node_k_thres[i].thres_vecs[j][vec_i];
             }
         }
     }

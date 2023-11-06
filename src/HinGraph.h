@@ -49,6 +49,7 @@ struct k_threshold
 {
     vector<vector<float>> thres_vecs;
     vector<vector<float>> corner_points; // contain the thres of dim0 and dim1, sort by the descending order of dim1
+    vector<bool> fix_thres;
 };
 
 struct k_homo_adj_node
@@ -99,10 +100,13 @@ private:
     vector<bool> community_vertex;
     vector<Vertex_neighbor> dn_adj_List; // dn
     vector<vector<Nei_similarity>> h_sim;
-    vector<unordered_map<int, k_threshold>> node_k_thres;
+    vector<k_threshold> node_k_thres;
     unordered_map<int, vector<int>> t_hop_visited;
     unordered_map<int, vector<int>> empty_dn_set;
     vector<vector<k_homo_adj_node>> k_homo_graph;
+    
+    //imporve_index variables
+    int all_community_num;
 
     // pscan variables
     vector<bool> visited_qtv_;
@@ -158,10 +162,11 @@ private:
     void improve_k_thres(int start_k);
     void skyline3D(int k);
     void skyline2D(int k, const vector<float> cons);
-    void update_concer_point(const vector<float> &cons, k_threshold &thres_corner);
+    // void update_concer_point(const vector<float> &cons, k_threshold &thres_corner, int type_i);
+    
     float constraint_one_dim(int k, const vector<float> &cons, int type_i);
-    bool compute_one_dim_max(int k, float re_type_threshold, vector<bool> &inCom, const vector<float> &cons,
-                             bool del_flag, const vector<int> visit, vector<bool> &fix_vertex);
+    bool compute_one_dim_max(int k, float re_type_threshold, const vector<float> &cons,
+                             int type_i, const vector<int> visit, vector<bool> &fix_vertex);
     bool bfs_community(int start_i, vector<int> &visit, const vector<bool> fix_vertex, int community_num);
 
     // index query

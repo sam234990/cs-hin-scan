@@ -1,6 +1,6 @@
 #/bin/bash
 
-option="fidx1"
+option="fidx"
 # option="qidx"
 # option="q"
 # option="f"
