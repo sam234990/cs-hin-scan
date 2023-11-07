@@ -206,13 +206,6 @@ void HinGraph::construct_index(string query_file, string option, int start_k)
     // save_all_similarity();
     load_all_similarity();
     t1.StopAndPrint("compute similarity time");
-    node_k_thres.resize(num_query_type_);
-    for (int i = 0; i < num_query_type_; i++)
-    {
-        node_k_thres[i].thres_vecs.reserve(initial_vector_size);
-        node_k_thres[i].corner_points.reserve(initial_vector_size);
-        node_k_thres[i].fix_thres = vector<bool>(100, false);
-    }
 
     if (option == "-fidx")
     {
@@ -493,6 +486,15 @@ void HinGraph::initial_construct_index()
                 t_hop_visited.reserve(initial_vector_size);
             }
         }
+    }
+    node_k_thres.resize(num_query_type_);
+    community_vertex.resize(num_query_type_, false);
+    for (int i = 0; i < num_query_type_; i++)
+    {
+        node_k_thres[i].thres_vecs.reserve(initial_vector_size);
+        node_k_thres[i].corner_points.reserve(initial_vector_size);
+        node_k_thres[i].fix_thres_dim1 = vector<bool>(101, false);
+        // node_k_thres[i].fix_thres_dim0 = vector<int>(100, 0);
     }
 }
 
@@ -1442,6 +1444,7 @@ bool customSort(const std::vector<float> &a, const std::vector<float> &b)
     return false; // a and b are equal
 }
 
+// not used
 void sortVectorsByDimensions(std::vector<std::vector<float>> &thres_vecs)
 {
     std::sort(thres_vecs.begin(), thres_vecs.end(), customSort);
@@ -1755,7 +1758,10 @@ void HinGraph::improve_k_thres(int start_k)
 
     k_homo_graph.resize(num_query_type_, vector<k_homo_adj_node>());
     for (int i = 0; i < num_query_type_; i++)
+    {
         k_homo_graph[i].reserve(h_sim[i].size());
+        node_k_thres[i].used_neighbor.resize(h_sim[i].size(), false);
+    }
 
     Timer t1;
     t1.Start();
@@ -1770,6 +1776,9 @@ void HinGraph::improve_k_thres(int start_k)
 
 void HinGraph::skyline3D(int k)
 {
+    for (int i = 0; i < num_query_type_; i++)
+        node_k_thres[i].used_neighbor.resize(h_sim[i].size(), false);
+
     float d_max;
     // int d_dim_offset = index_type_order.size() - 1;
     vector<float> cons(index_type_order.size(), 0.0);
@@ -1810,22 +1819,33 @@ void HinGraph::skyline2D(int k, const vector<float> cons)
         else
             last_vertex[i] = false;
     // 1.2 compute the fix node and corresponding d1 threshold
-    vector<bool> compute_d1_thres(100, false);
+    vector<bool> compute_d1_thres(101, false);
     for (int i = 0; i < num_query_type_; i++)
     {
         if (last_vertex[i] == false)
             continue;
-        node_k_thres[i].fix_thres = vector<bool>(100, false);
-        for (const auto &nei_i : h_sim[i])
+        node_k_thres[i].fix_thres_dim1 = vector<bool>(101, false);
+        // node_k_thres[i].fix_thres_dim0 = vector<int>(101, 0);
+        // for (const auto &nei_i : h_sim[i])
+        for (int j = 0; j < h_sim[i].size(); j++)
         {
+            const auto &nei_i = h_sim[i][j];
             if (last_vertex[nei_i.neighbor_i] == false)
                 continue;
             if (judge_geq_from_start(nei_i.sim_vec, cons, 2) == false)
                 continue;
+            // TODO judge new edge bug : not save the old edge.
+            // use the bool neighbor save the old neighbor
+            if (node_k_thres[i].used_neighbor[j] == true)
+                continue;
             if (judge_new_edge(nei_i.sim_vec, node_k_thres[i].corner_points) == true)
             {
+                // TODO -- may save the d0 threshold here. dim0--dim1对应多个dim0？
                 int new_fix_thres = nei_i.sim_vec[1] * 100;
-                node_k_thres[i].fix_thres[new_fix_thres] = true; // maybe a new fix_thres
+                // int new_dim_0 = nei_i.sim_vec[0] * 100;
+                node_k_thres[i].fix_thres_dim1[new_fix_thres] = true; // maybe a new fix_thres
+                node_k_thres[i].used_neighbor[j] = true;
+                // node_k_thres[i].fix_thres_dim0[new_fix_thres] = new_dim_0;
                 if (compute_d1_thres[new_fix_thres] == false)
                     compute_d1_thres[new_fix_thres] = true;
             }
@@ -1910,6 +1930,7 @@ float HinGraph::constraint_one_dim(int k, const vector<float> &cons, int type_i)
     }
 
     queue<int> delete_q;
+    // vector<bool> compute_dim_0(100, false);
     for (int i = 0; i < num_query_type_; i++)
     {
         if (community_vertex[i] == false)
@@ -1924,8 +1945,13 @@ float HinGraph::constraint_one_dim(int k, const vector<float> &cons, int type_i)
             float sim_type_i = nei_i.sim_vec[type_i];
             k_homo_graph[i].push_back(k_homo_adj_node(nei_i.neighbor_i, sim_type_i));
         }
-        if (flag_fix && node_k_thres[i].fix_thres[fix_vertex_thres_] == true)
+        if (flag_fix && node_k_thres[i].fix_thres_dim1[fix_vertex_thres_] == true)
+        {
             fix_vertex[i] = true; // this veretex may be the fix vertex
+            // add the thres+1 |--  0.238 or 0.23 -> 0.23 add the threshold at the 0.24
+            // int fix_dim0 = node_k_thres[i].fix_thres_dim0[fix_vertex_thres_] + 1;
+            // compute_dim_0[fix_dim0] = true;
+        }
         coreNum[i] = k_homo_graph[i].size();
         if (coreNum[i] < k)
         {
@@ -2017,6 +2043,11 @@ float HinGraph::constraint_one_dim(int k, const vector<float> &cons, int type_i)
     int start = min_sim * 100 + 1, end = max_sim * 100 + 1;
     for (int i = start; i <= end; i++)
     { // from 0.01 to 1.01
+        // if (flag_fix)
+        // {
+        //     if (compute_dim_0[i] == false)
+        //         continue;
+        // }
         float re_type_threshold = i / 100.0;
         vector<float> thres(cons);
         thres[type_i] = (i - 1) / 100.0; // add the last point to the threshold
@@ -2030,7 +2061,7 @@ float HinGraph::constraint_one_dim(int k, const vector<float> &cons, int type_i)
 
 bool compareCorners(const vector<float> &a, const vector<float> &b)
 {
-    if (a[1] > b[1]) // Compare based on the dim1 , in descending order
+    if (a[1] > b[1]) // Compare based on the dim1, in descending order
         return true;
     else if (a[1] < b[1])
         return false;
@@ -2050,6 +2081,7 @@ void update_concer_point(const vector<float> &cons, k_threshold &thres_corner, i
     {
         if (type_i == 0)
         { // type 0 only update with the new threshold
+            // TODO -- the new threshold may be dominated.
             add_new_th(cons, thres_corner.thres_vecs);
         }
         else

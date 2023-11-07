@@ -49,7 +49,9 @@ struct k_threshold
 {
     vector<vector<float>> thres_vecs;
     vector<vector<float>> corner_points; // contain the thres of dim0 and dim1, sort by the descending order of dim1
-    vector<bool> fix_thres;
+    vector<bool> used_neighbor;
+    vector<bool> fix_thres_dim1;
+    // vector<int> fix_thres_dim0;
 };
 
 struct k_homo_adj_node
