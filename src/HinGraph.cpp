@@ -1636,7 +1636,24 @@ void add_new_th(const vector<float> thres_sim_vec, vector<vector<float>> &old_th
             continue;
         tmp.push_back(old_vec); // old thres vec is not dominate by new one
     }
-    tmp.push_back(thres_sim_vec);
+    if (tmp.size() == old_thres_vecs.size())
+    { // new thres_sim_vec maynot add to threshold
+        bool add_flag = true;
+        for (const auto old_vec : old_thres_vecs)
+        {
+            if (judge_demoinate(old_vec, thres_sim_vec))
+            {
+                add_flag = false;
+                break;
+            }
+        }
+        if (add_flag == true)
+            tmp.push_back(thres_sim_vec);
+    }
+    else
+    { // new thres can add to the threshold
+        tmp.push_back(thres_sim_vec);
+    }
     old_thres_vecs = move(tmp);
 }
 
@@ -2079,30 +2096,8 @@ void update_concer_point(const vector<float> &cons, k_threshold &thres_corner, i
     }
     else
     {
-        if (type_i == 0)
-        { // type 0 only update with the new threshold
-            // TODO -- the new threshold may be dominated.
-            add_new_th(cons, thres_corner.thres_vecs);
-        }
-        else
-        {
-            vector<vector<float>> tmp;
-            tmp.reserve(thres_corner.thres_vecs.size());
-            for (auto &old_vec : thres_corner.thres_vecs)
-            {
-                if (judge_demoinate(cons, old_vec))
-                    continue;
-                tmp.push_back(old_vec); // old thres vec is not dominate by new one
-            }
-            if (tmp.size() == thres_corner.thres_vecs.size())
-            { // new thres_sim_vec cannot add to threshold
-                return;
-            }
-            tmp.push_back(cons);
-            thres_corner.thres_vecs = move(tmp);
-        }
+        add_new_th(cons, thres_corner.thres_vecs);
     }
-    add_new_th(cons, thres_corner.thres_vecs);
     // 2. update corner point;
     if (type_i != 0) // only update the corner point when dim0
         return;
