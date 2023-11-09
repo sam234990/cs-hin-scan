@@ -1,12 +1,12 @@
 #/bin/bash
 
-option="fidx"
+option="fidx1"
 # option="qidx"
 # option="q"
 # option="f"
 # /mnt/data/wangshu/scan/amazon/
-# datasets="DBLP_2"
-datasets="amazon"
+datasets="DBLP_2"
+# datasets="amazon"
 input_dir="/mnt/data/wangshu/scan/$datasets"
 output_path="/mnt/data/wangshu/scan/$datasets"
 mu_values=(2 5 10 15 20)

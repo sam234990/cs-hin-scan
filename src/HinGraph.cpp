@@ -494,7 +494,6 @@ void HinGraph::initial_construct_index()
         node_k_thres[i].thres_vecs.reserve(initial_vector_size);
         node_k_thres[i].corner_points.reserve(initial_vector_size);
         node_k_thres[i].fix_thres_dim1 = vector<bool>(101, false);
-        // node_k_thres[i].fix_thres_dim0 = vector<int>(100, 0);
     }
 }
 
@@ -1444,7 +1443,6 @@ bool customSort(const std::vector<float> &a, const std::vector<float> &b)
     return false; // a and b are equal
 }
 
-// not used
 void sortVectorsByDimensions(std::vector<std::vector<float>> &thres_vecs)
 {
     std::sort(thres_vecs.begin(), thres_vecs.end(), customSort);
@@ -1748,6 +1746,28 @@ bool judge_new_edge(const vector<float> sim_vec, const vector<vector<float>> cor
     return false;
 }
 
+int judge_new_edge_dim1(const vector<float> sim_vec, const vector<vector<float>> corner_points)
+{
+    int last = corner_points.size() - 1;
+    if (sim_vec[1] > corner_points[0][1])
+        return corner_points[0][1] * 100;
+    if (sim_vec[0] > corner_points[last][0])
+        return corner_points[last][1] * 100;
+    bool flag_new = false;
+    int min_dim1 = 100;
+    for (auto &cp : corner_points)
+    {
+        if ((cp[1] < sim_vec[1]) && (cp[0] < sim_vec[0]))
+        {
+            flag_new = true;
+            min_dim1 = 100 * cp[1];
+        }
+    }
+    if (flag_new == false)
+        return -1;
+    return min_dim1;
+}
+
 // improve index construct
 void HinGraph::improve_k_thres(int start_k)
 {
@@ -1786,9 +1806,11 @@ void HinGraph::improve_k_thres(int start_k)
     {
         cout << k << endl;
         skyline3D(k);
+        t1.StopAndPrint("finsih imporve construct index: ");
+        for (int i = 0; i < num_query_type_; i++)
+            sortVectorsByDimensions(node_k_thres[i].thres_vecs);
         save_k_thres_vec(k);
     }
-    t1.StopAndPrint("finsih imporve construct index: ");
 }
 
 void HinGraph::skyline3D(int k)
@@ -1851,20 +1873,21 @@ void HinGraph::skyline2D(int k, const vector<float> cons)
                 continue;
             if (judge_geq_from_start(nei_i.sim_vec, cons, 2) == false)
                 continue;
-            // TODO judge new edge bug : not save the old edge.
             // use the bool neighbor save the old neighbor
             if (node_k_thres[i].used_neighbor[j] == true)
                 continue;
-            if (judge_new_edge(nei_i.sim_vec, node_k_thres[i].corner_points) == true)
+            int start_dim1 = judge_new_edge_dim1(nei_i.sim_vec, node_k_thres[i].corner_points);
+            // if (judge_new_edge(nei_i.sim_vec, node_k_thres[i].corner_points) == true)
+            if (start_dim1 != -1)
             {
-                // TODO -- may save the d0 threshold here. dim0--dim1对应多个dim0？
+                // TODO --  new-edge 不在新的点dim1增加thres -- Finished
                 int new_fix_thres = nei_i.sim_vec[1] * 100;
-                // int new_dim_0 = nei_i.sim_vec[0] * 100;
-                node_k_thres[i].fix_thres_dim1[new_fix_thres] = true; // maybe a new fix_thres
-                node_k_thres[i].used_neighbor[j] = true;
-                // node_k_thres[i].fix_thres_dim0[new_fix_thres] = new_dim_0;
-                if (compute_d1_thres[new_fix_thres] == false)
-                    compute_d1_thres[new_fix_thres] = true;
+                for (int dim1 = start_dim1; dim1 <= new_fix_thres; dim1++)
+                {
+                    node_k_thres[i].fix_thres_dim1[dim1] = true; // maybe a new fix_thres
+                    node_k_thres[i].used_neighbor[j] = true;
+                    compute_d1_thres[dim1] = true;
+                }
             }
         }
     }
@@ -2091,13 +2114,10 @@ void update_concer_point(const vector<float> &cons, k_threshold &thres_corner, i
 {
     // 1. update threshold
     if (thres_corner.thres_vecs.size() == 0)
-    {
         thres_corner.thres_vecs.push_back(cons);
-    }
     else
-    {
         add_new_th(cons, thres_corner.thres_vecs);
-    }
+
     // 2. update corner point;
     if (type_i != 0) // only update the corner point when dim0
         return;
@@ -2180,6 +2200,7 @@ bool HinGraph::compute_one_dim_max(int k, float re_type_threshold, const vector<
         { // current community may delete
             community_del[visit[cur_i]] = true;
         }
+        // TODO fixnode update a new thres need to delete the fix thres.
         update_concer_point(cons, node_k_thres[cur_i], type_i);
         for (auto nei_cur_i : k_homo_graph[cur_i])
         {
