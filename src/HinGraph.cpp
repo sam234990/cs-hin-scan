@@ -197,9 +197,9 @@ void HinGraph::construct_index(string query_file, string option, int start_k)
     Timer t1;
     t1.Start();
 
-    search_d_neighbor();
-    check_empty_set();
-    save_d_n();
+    // search_d_neighbor();
+    // check_empty_set();
+    // save_d_n();
     t1.StopAndPrint("search k-strata time");
 
     // compute_all_similarity();
@@ -1749,7 +1749,7 @@ bool judge_new_edge(const vector<float> sim_vec, const vector<vector<float>> cor
 int judge_new_edge_dim1(const vector<float> sim_vec, const vector<vector<float>> corner_points)
 {
     int last = corner_points.size() - 1;
-    if (sim_vec[1] > corner_points[0][1])
+    if (sim_vec[0] == 0.0 && sim_vec[1] > corner_points[0][1])
         return corner_points[0][1] * 100;
     if (sim_vec[0] > corner_points[last][0])
         return corner_points[last][1] * 100;
@@ -1825,8 +1825,12 @@ void HinGraph::skyline3D(int k)
     cout << d_max << endl;
     for (int i = int(d_max * 100); i >= 0; i--)
     {
+        // if (i > 25)
+        //     i = 25;
+        // if (i < 25)
+        //     i = 20;
         cons[2] = i / 100.0;
-        cout << float(i / 100.0) << endl;
+        cout << cons[2] << endl;
         skyline2D(k, cons);
     }
 }
@@ -1859,13 +1863,18 @@ void HinGraph::skyline2D(int k, const vector<float> cons)
             last_vertex[i] = false;
     // 1.2 compute the fix node and corresponding d1 threshold
     vector<bool> compute_d1_thres(101, false);
+    vector<bool> fix_vertex(num_query_type_, false); // update vertex under current cons
+
     for (int i = 0; i < num_query_type_; i++)
     {
         if (last_vertex[i] == false)
             continue;
         node_k_thres[i].fix_thres_dim1 = vector<bool>(101, false);
         // node_k_thres[i].fix_thres_dim0 = vector<int>(101, 0);
-        // for (const auto &nei_i : h_sim[i])
+
+        bool fix_flag_node = false;
+        k_homo_graph[i].clear();
+
         for (int j = 0; j < h_sim[i].size(); j++)
         {
             const auto &nei_i = h_sim[i][j];
@@ -1873,7 +1882,7 @@ void HinGraph::skyline2D(int k, const vector<float> cons)
                 continue;
             if (judge_geq_from_start(nei_i.sim_vec, cons, 2) == false)
                 continue;
-            // use the bool neighbor save the old neighbor
+            k_homo_graph[i].push_back(k_homo_adj_node(nei_i.neighbor_i, 0));
             if (node_k_thres[i].used_neighbor[j] == true)
                 continue;
             int start_dim1 = judge_new_edge_dim1(nei_i.sim_vec, node_k_thres[i].corner_points);
@@ -1882,14 +1891,39 @@ void HinGraph::skyline2D(int k, const vector<float> cons)
             {
                 // TODO --  new-edge 不在新的点dim1增加thres -- Finished
                 int new_fix_thres = nei_i.sim_vec[1] * 100;
+                node_k_thres[i].used_neighbor[j] = true;
+                fix_flag_node = true;
                 for (int dim1 = start_dim1; dim1 <= new_fix_thres; dim1++)
                 {
                     node_k_thres[i].fix_thres_dim1[dim1] = true; // maybe a new fix_thres
-                    node_k_thres[i].used_neighbor[j] = true;
                     compute_d1_thres[dim1] = true;
                 }
             }
         }
+        if (fix_flag_node == true)
+            fix_vertex[i] = true;
+    }
+    // prune the community without fix vertex
+    int community_max = num_query_type_ / k, community_num = 1;
+    vector<int> visit(num_query_type_, 0);
+    vector<bool> community_del(community_max, false);
+    for (int i = 0; i < num_query_type_; i++)
+    {
+        if (visit[i] != 0)
+        {
+            if (community_del[visit[i]] == true)
+                last_vertex[i] = false;
+            continue;
+        }
+        if (last_vertex[i] == false)
+            continue;
+        bool flag_del = bfs_community(i, visit, fix_vertex, community_num);
+        if (flag_del == true)
+        { // current community not contain fix node. delete it
+            community_del[community_num] = true;
+            last_vertex[i] = false;
+        }
+        community_num++;
     }
 
     float d1_max;
@@ -1970,6 +2004,7 @@ float HinGraph::constraint_one_dim(int k, const vector<float> &cons, int type_i)
     }
 
     queue<int> delete_q;
+    bool contain_fix_vertex = false;
     // vector<bool> compute_dim_0(100, false);
     for (int i = 0; i < num_query_type_; i++)
     {
@@ -1988,7 +2023,7 @@ float HinGraph::constraint_one_dim(int k, const vector<float> &cons, int type_i)
         if (flag_fix && node_k_thres[i].fix_thres_dim1[fix_vertex_thres_] == true)
         {
             fix_vertex[i] = true; // this veretex may be the fix vertex
-            // add the thres+1 |--  0.238 or 0.23 -> 0.23 add the threshold at the 0.24
+            contain_fix_vertex = true;
             // int fix_dim0 = node_k_thres[i].fix_thres_dim0[fix_vertex_thres_] + 1;
             // compute_dim_0[fix_dim0] = true;
         }
@@ -1998,6 +2033,8 @@ float HinGraph::constraint_one_dim(int k, const vector<float> &cons, int type_i)
             delete_q.push(i);
         }
     }
+    if (flag_fix && contain_fix_vertex == false)
+        return 0.0;
 
     // 1.2 core-decomposition get k-core vertex
     while (!delete_q.empty())
