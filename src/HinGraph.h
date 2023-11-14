@@ -6,7 +6,7 @@
 #include "multiLevelQueue.h"
 #include <vector>
 #include <string>
-#include <vector>
+#include <bitset>
 #include <algorithm>
 #include <iostream>
 #include <fstream>
@@ -45,12 +45,15 @@ struct Query_nei_similarity
     float similarity;
 };
 
+const int SP_SIZE = 100;
+
 struct k_threshold
 {
     vector<vector<float>> thres_vecs;
     vector<vector<float>> corner_points; // contain the thres of dim0 and dim1, sort by the descending order of dim1
     vector<bool> used_neighbor;
-    vector<bool> fix_thres_dim1;
+    bitset<SP_SIZE + 1> fix_thres_dim1;
+    bitset<SP_SIZE + 1> unsat_dim1;
 };
 
 struct k_homo_adj_node
@@ -105,8 +108,8 @@ private:
     unordered_map<int, vector<int>> t_hop_visited;
     unordered_map<int, vector<int>> empty_dn_set;
     vector<vector<k_homo_adj_node>> k_homo_graph;
-    
-    //imporve_index variables
+
+    // imporve_index variables
     int all_community_num;
 
     // pscan variables
@@ -164,11 +167,12 @@ private:
     void skyline3D(int k);
     void skyline2D(int k, const vector<float> cons);
     // void update_concer_point(const vector<float> &cons, k_threshold &thres_corner, int type_i);
-    
-    float constraint_one_dim(int k, const vector<float> &cons, int type_i);
-    bool compute_one_dim_max(int k, float re_type_threshold, const vector<float> &cons,
-                             int type_i, const vector<int> visit, vector<bool> &fix_vertex);
-    bool bfs_community(int start_i, vector<int> &visit, const vector<bool> fix_vertex, int community_num);
+
+    float constraint_one_dim(int k, const vector<float> cons, int type_i, int fix_vertex_thres_);
+    bool compute_one_dim_max(int k, float re_type_threshold, const vector<float> cons,
+                             int type_i, const vector<int> visit, vector<bool> fix_vertex);
+    bool bfs_community(int start_i, vector<int> &visit, const vector<bool> fix_vertex,
+                       int community_num, bitset<SP_SIZE + 1> &c_dim1);
 
     // index query
     void index_query_();

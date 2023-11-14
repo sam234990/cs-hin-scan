@@ -5,8 +5,8 @@ option="fidx1"
 # option="q"
 # option="f"
 # /mnt/data/wangshu/scan/amazon/
-# datasets="DBLP_2"
-datasets="amazon"
+datasets="DBLP_2"
+# datasets="amazon"
 input_dir="/mnt/data/wangshu/scan/$datasets"
 output_path="/mnt/data/wangshu/scan/$datasets"
 mu_values=(2 5 10 15 20)
@@ -17,7 +17,7 @@ query_file_name="query_1.txt"
 query_file="./$query_file_name"
 # log file path
 # log_file="../debug_result/$datasets-${query_file_name%.txt}-$option.log"
-log_file="../debug_result/fidx/$datasets-${query_file_name%.txt}-3-$option.log"
+log_file="../debug_result/fidx/t-$datasets-${query_file_name%.txt}-3-$option.log"
 
 
 nohup ./cs_hin_scan -$option $input_dir $query_file 3 \
