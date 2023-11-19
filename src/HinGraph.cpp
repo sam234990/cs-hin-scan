@@ -1808,7 +1808,7 @@ void HinGraph::improve_k_thres(int start_k)
         t1.StopAndPrint("finsih imporve construct index: ");
         for (int i = 0; i < num_query_type_; i++)
             sortVectorsByDimensions(node_k_thres[i].thres_vecs);
-        // save_k_thres_vec(k);
+        save_k_thres_vec(k);
     }
 }
 

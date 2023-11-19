@@ -17,7 +17,7 @@ query_file_name="query_1.txt"
 query_file="./$query_file_name"
 # log file path
 # log_file="../debug_result/$datasets-${query_file_name%.txt}-$option.log"
-log_file="../debug_result/fidx/t-$datasets-${query_file_name%.txt}-3-$option.log"
+log_file="../debug_result/fidx/$datasets-${query_file_name%.txt}-3-$option.log"
 
 
 nohup ./cs_hin_scan -$option $input_dir $query_file 3 \
