@@ -1878,11 +1878,13 @@ void HinGraph::skyline2D(int k, const vector<float> cons)
                 continue;
             k_homo_graph[i].push_back(k_homo_adj_node(nei_i.neighbor_i, 0));
 
+            int new_fix_thres = nei_i.sim_vec[1] * 100;
+            node_k_thres[i].unsat_dim1.set(new_fix_thres); // current edge not met
             int start_dim1 = judge_new_edge_dim1(nei_i.sim_vec, node_k_thres[i].corner_points);
             if (start_dim1 != -1)
             {
-                int new_fix_thres = nei_i.sim_vec[1] * 100;
-                node_k_thres[i].unsat_dim1.set(new_fix_thres); // current edge not met
+                // int new_fix_thres = nei_i.sim_vec[1] * 100;
+                // node_k_thres[i].unsat_dim1.set(new_fix_thres); // current edge not met
                 if (node_k_thres[i].used_neighbor[j] == true)
                     continue;
                 node_k_thres[i].used_neighbor[j] = true;
