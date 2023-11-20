@@ -17,10 +17,11 @@ query_file_name="query_1.txt"
 query_file="./$query_file_name"
 # log file path
 # log_file="../debug_result/$datasets-${query_file_name%.txt}-$option.log"
-log_file="../debug_result/fidx/$datasets-${query_file_name%.txt}-3-$option.log"
+start_k="5"
+log_file="../debug_result/fidx/$datasets-${query_file_name%.txt}-$start_k-$option.log"
 
 
-nohup ./cs_hin_scan -$option $input_dir $query_file 3 \
+nohup ./cs_hin_scan -$option $input_dir $query_file $start_k \
     > $log_file 2>&1 &
 
 # k_values=(3 4 5 6 7 8 9 10)

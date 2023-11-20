@@ -54,6 +54,8 @@ struct k_threshold
     vector<bool> used_neighbor;
     bitset<SP_SIZE + 1> fix_thres_dim1;
     bitset<SP_SIZE + 1> unsat_dim1;
+    bitset<SP_SIZE + 2> one_dim;
+    int max_dim0;
 };
 
 struct k_homo_adj_node
