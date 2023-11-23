@@ -197,13 +197,13 @@ void HinGraph::construct_index(string query_file, string option, int start_k)
     Timer t1;
     t1.Start();
 
-    // search_d_neighbor();
-    // check_empty_set();
-    // save_d_n();
+    search_d_neighbor();
+    check_empty_set();
+    save_d_n();
     t1.StopAndPrint("search k-strata time");
 
-    // compute_all_similarity();
-    // save_all_similarity();
+    compute_all_similarity();
+    save_all_similarity();
     load_all_similarity();
     t1.StopAndPrint("compute similarity time");
 
@@ -1817,9 +1817,15 @@ void HinGraph::skyline3D(int k)
     for (int i = 0; i < num_query_type_; i++)
         node_k_thres[i].used_neighbor.resize(h_sim[i].size(), false);
 
-    float d_max;
     // int d_dim_offset = index_type_order.size() - 1;
     vector<float> cons(index_type_order.size(), 0.0);
+    if (cons.size() == 2)
+    {
+        skyline2D(k, cons);
+        return;
+    }
+
+    float d_max;
     d_max = constraint_one_dim(k, cons, 2, 0);
     cout << d_max << endl;
     for (int i = int(d_max * 100); i >= 0; i--)
@@ -1849,61 +1855,91 @@ bool SelectConsVertex(const vector<vector<float>> &k_threshold, const vector<flo
 
 void HinGraph::skyline2D(int k, const vector<float> cons)
 {
+    bool only_2d = (cons.size() == 2);
     // 1. check any NEW_EDGE under cons(fix node). if not continue current the d1 dimension.
-    //  1.1 select the node under cons
-    for (int i = 0; i < num_query_type_; i++)
-        if (SelectConsVertex(node_k_thres[i].thres_vecs, cons, 2) == true)
-            last_vertex[i] = true;
-        else
-            last_vertex[i] = false;
-    // 1.2 compute the fix node and corresponding d1 threshold
-    // vector<bool> compute_d1_thres(101, false);
     bitset<SP_SIZE + 1> compute_d1_thres;
     vector<bool> fix_vertex(num_query_type_, false); // update vertex under current cons
 
-    for (int i = 0; i < num_query_type_; i++)
+    //  1.1 select the node under cons
+    if (only_2d == false)
     {
-        if (last_vertex[i] == false)
-            continue;
-        node_k_thres[i].fix_thres_dim1.reset();
-        node_k_thres[i].unsat_dim1.reset();
-        bool fix_flag_node = false;
-        k_homo_graph[i].clear();
-
-        for (int j = 0; j < h_sim[i].size(); j++)
+        for (int i = 0; i < num_query_type_; i++)
+            if (SelectConsVertex(node_k_thres[i].thres_vecs, cons, 2) == true)
+                last_vertex[i] = true;
+            else
+                last_vertex[i] = false;
+        // 1.2 compute the fix node and corresponding d1 threshold
+        for (int i = 0; i < num_query_type_; i++)
         {
-            const auto &nei_i = h_sim[i][j];
-            if (last_vertex[nei_i.neighbor_i] == false)
+            if (last_vertex[i] == false)
                 continue;
-            if (judge_geq_from_start(nei_i.sim_vec, cons, 2) == false)
-                continue;
-            k_homo_graph[i].push_back(k_homo_adj_node(nei_i.neighbor_i, 0));
+            node_k_thres[i].fix_thres_dim1.reset();
+            node_k_thres[i].unsat_dim1.reset();
+            bool fix_flag_node = false;
+            k_homo_graph[i].clear();
 
-            int new_fix_thres = nei_i.sim_vec[1] * 100;
-            node_k_thres[i].unsat_dim1.set(new_fix_thres); // current edge not met
-            int start_dim1 = judge_new_edge_dim1(nei_i.sim_vec, node_k_thres[i].corner_points);
-            if (start_dim1 != -1)
+            for (int j = 0; j < h_sim[i].size(); j++)
             {
-                // int new_fix_thres = nei_i.sim_vec[1] * 100;
-                // node_k_thres[i].unsat_dim1.set(new_fix_thres); // current edge not met
-                if (node_k_thres[i].used_neighbor[j] == true)
+                const auto &nei_i = h_sim[i][j];
+                if (last_vertex[nei_i.neighbor_i] == false)
                     continue;
-                node_k_thres[i].used_neighbor[j] = true;
-                fix_flag_node = true;
-                for (int dim1 = start_dim1; dim1 <= new_fix_thres; dim1++)
+                if (judge_geq_from_start(nei_i.sim_vec, cons, 2) == false)
+                    continue;
+                k_homo_graph[i].push_back(k_homo_adj_node(nei_i.neighbor_i, 0));
+
+                int new_fix_thres = nei_i.sim_vec[1] * 100;
+                node_k_thres[i].unsat_dim1.set(new_fix_thres); // current edge not met
+                int start_dim1 = judge_new_edge_dim1(nei_i.sim_vec, node_k_thres[i].corner_points);
+                if (start_dim1 != -1)
                 {
-                    node_k_thres[i].fix_thres_dim1.set(dim1); // maybe a new fix_thres
-                    // compute_d1_thres[dim1] = true;
+                    if (node_k_thres[i].used_neighbor[j] == true)
+                        continue;
+                    node_k_thres[i].used_neighbor[j] = true;
+                    fix_flag_node = true;
+                    for (int dim1 = start_dim1; dim1 <= new_fix_thres; dim1++)
+                    {
+                        node_k_thres[i].fix_thres_dim1.set(dim1); // maybe a new fix_thres
+                    }
                 }
-                // int new_dim0 = nei_i.sim_vec[0] * 100;
-                // if (new_dim0 > node_k_thres[i].max_dim0)
-                //     node_k_thres[i].max_dim0 = new_dim0;
+            }
+            if (fix_flag_node == true)
+                fix_vertex[i] = true;
+        }
+    }
+    else
+    {
+        constraint_one_dim(k, cons, 1, 0);
+        constraint_one_dim(k, cons, 0, 0);
+        for (int i = 0; i < num_query_type_; i++)
+        {
+            if (node_k_thres[i].thres_vecs.size() == 0)
+                last_vertex[i] = false;
+            else
+                last_vertex[i] = true;
+        }
+
+        for (int i = 0; i < num_query_type_; i++)
+        {
+            if (last_vertex[i] == false)
+                continue;
+            fix_vertex[i] = true;
+            node_k_thres[i].fix_thres_dim1.reset();
+            node_k_thres[i].unsat_dim1.reset();
+            k_homo_graph[i].clear();
+            for (int dim1 = 0; dim1 < SP_SIZE + 1; dim1++)
+                node_k_thres[i].fix_thres_dim1.set(dim1);
+            for (auto &nei_i : h_sim[i])
+            {
+                if (last_vertex[nei_i.neighbor_i] == false)
+                    continue;
+                int new_fix_thres = nei_i.sim_vec[1] * 100;
+                node_k_thres[i].unsat_dim1.set(new_fix_thres);
+                k_homo_graph[i].push_back(k_homo_adj_node(nei_i.neighbor_i, 0));
             }
         }
-        if (fix_flag_node == true)
-            fix_vertex[i] = true;
     }
-    // prune the community without fix vertex
+
+    // 1.3 prune the community without fix vertex
     int community_max = num_query_type_ / k, community_num = 1;
     vector<int> visit(num_query_type_, 0);
     vector<bool> community_del(community_max, false);
@@ -2017,7 +2053,7 @@ float HinGraph::constraint_one_dim(int k, const vector<float> cons, int type_i, 
         }
     }
 
-    bool flag_fix = (type_i == 0);
+    bool flag_fix = (allzero_ == false) && (type_i == 0);
 
     queue<int> delete_q;
     bool contain_fix_vertex = false;
@@ -2134,7 +2170,7 @@ float HinGraph::constraint_one_dim(int k, const vector<float> cons, int type_i, 
 
     // 2. compute the maximal threshold at TYPE_I dimension
     for (int i = 1; i <= 101; i++)
-    { // from 0.01 to 1.01
+    {                                          // from 0.01 to 1.01
         if (compute_one_dim_thres[i] == false) // graph not contain this thres
             continue;
         float re_type_threshold = i / 100.0;
