@@ -166,7 +166,8 @@ private:
 
     // imporve index construct
     void improve_k_thres(int start_k);
-    void skyline3D(int k);
+    void skyline_highD(int k, vector<float> &cons, int cur_d);
+    void skyline3D(int k, vector<float> &cons);
     void skyline2D(int k, const vector<float> cons);
     // void update_concer_point(const vector<float> &cons, k_threshold &thres_corner, int type_i);
 

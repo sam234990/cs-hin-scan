@@ -197,13 +197,25 @@ void HinGraph::construct_index(string query_file, string option, int start_k)
     Timer t1;
     t1.Start();
 
-    search_d_neighbor();
-    check_empty_set();
-    save_d_n();
-    t1.StopAndPrint("search k-strata time");
+    string type_index_path = data_index_dir_ + "/" + to_string(p_query_type);
+    string all_sim_path = type_index_path + "/sim_graph.txt";
+    std::ifstream sim_file(all_sim_path.c_str());
+    if (sim_file.good() == false)
+    {
+        cout << "start counput the Similarity graph" << endl;
+        search_d_neighbor();
+        check_empty_set();
+        save_d_n();
+        t1.StopAndPrint("search k-strata time");
 
-    compute_all_similarity();
-    save_all_similarity();
+        compute_all_similarity();
+        save_all_similarity();
+    }
+    else
+    {
+        cout << "Already compute the Similarity graph" << endl;
+    }
+
     load_all_similarity();
     t1.StopAndPrint("compute similarity time");
 
@@ -1801,29 +1813,43 @@ void HinGraph::improve_k_thres(int start_k)
 
     Timer t1;
     t1.Start();
-    for (int k = start_k; k <= k_max; k++)
+    int k = start_k;
+    cout << k << endl;
+    vector<float> cons(index_type_order.size(), 0.0);
+    if (cons.size() == 1)
+        constraint_one_dim(k, cons, 0, 0);
+    else if (cons.size() == 2)
+        skyline2D(k, cons);
+    else if (cons.size() == 3)
+        skyline3D(k, cons);
+    else
+        skyline_highD(k, cons, cons.size() - 1);
+
+    t1.StopAndPrint("finsih imporve construct index: ");
+    for (int i = 0; i < num_query_type_; i++)
+        sortVectorsByDimensions(node_k_thres[i].thres_vecs);
+    save_k_thres_vec(k);
+}
+
+void HinGraph::skyline_highD(int k, vector<float> &cons, int cur_d)
+{ // consider the current dimension under the
+    if (cur_d == 2)
     {
-        cout << k << endl;
-        skyline3D(k);
-        t1.StopAndPrint("finsih imporve construct index: ");
-        for (int i = 0; i < num_query_type_; i++)
-            sortVectorsByDimensions(node_k_thres[i].thres_vecs);
-        save_k_thres_vec(k);
+        skyline3D(k, cons);
+        return;
+    }
+    float d_max;
+    d_max = constraint_one_dim(k, cons, cur_d, 0);
+    for (int i = int(d_max * 100); i >= 0; i--)
+    {
+        cons[2] = i / 100.0;
+        cout << cur_d << " dimension cons: " << cons[2] << endl;
+        skyline_highD(k, cons, cur_d - 1);
     }
 }
 
-void HinGraph::skyline3D(int k)
+void HinGraph::skyline3D(int k, vector<float> &cons)
 {
-    for (int i = 0; i < num_query_type_; i++)
-        node_k_thres[i].used_neighbor.resize(h_sim[i].size(), false);
-
-    // int d_dim_offset = index_type_order.size() - 1;
-    vector<float> cons(index_type_order.size(), 0.0);
-    if (cons.size() == 2)
-    {
-        skyline2D(k, cons);
-        return;
-    }
 
     float d_max;
     d_max = constraint_one_dim(k, cons, 2, 0);
@@ -1831,7 +1857,9 @@ void HinGraph::skyline3D(int k)
     for (int i = int(d_max * 100); i >= 0; i--)
     {
         cons[2] = i / 100.0;
-        cout << cons[2] << endl;
+        cout << cons[2] << " ";
+        if (i % 10 == 0)
+            cout << endl;
         skyline2D(k, cons);
     }
 }

@@ -213,7 +213,10 @@ void utils::read_and_print_graph()
 		{
 			cout << vertex_edge_num << " ";
 			int cur_end = edges_[vertex_id].size() - 1;
-			cout << edges_[vertex_id][cur_end].v_id << " " << edges_[vertex_id][cur_end].v_type << endl;
+			if (cur_end < 0)
+				cout << "-1 -1" << endl;
+			else
+				cout << edges_[vertex_id][cur_end].v_id << " " << edges_[vertex_id][cur_end].v_type << endl;
 		}
 	}
 
