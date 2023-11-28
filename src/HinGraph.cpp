@@ -141,7 +141,7 @@ void HinGraph::cs_hin_scan(string query_file, string mode)
     initialize_query_();
     reinitialize_query_();
 
-    if (mode == "-qidx" || mode == "-qidxsel" || mode == "-qidxON")
+    if (mode == "-qidx" || mode == "-qidxsel" || mode == "-qidxSCAN")
     {
         mode_query = 10;
         if (mode == "-qidxsel")
@@ -150,7 +150,7 @@ void HinGraph::cs_hin_scan(string query_file, string mode)
             select_query_node();
             return;
         }
-        if (mode == "-qidxON")
+        if (mode == "-qidxSCAN")
         {
             mode_query = 12;
         }
@@ -540,7 +540,7 @@ void HinGraph::reinitialize_query_()
 
 void HinGraph::print_result(bool print_all, long use_time)
 {
-    if (mode_query == 10)
+    if (mode_query >= 10)
     {
         if (is_in_community[query_i])
         {
@@ -653,6 +653,69 @@ void HinGraph::baseline_query_()
     Timer::PrintTime(str1, all_time);
 }
 
+void HinGraph::query_index_scan()
+{
+    queue<int> cs_node_q;
+
+    if (index_judge_core(query_i, p_mu) == false)
+    {
+        int nei_num = 0;
+        for (const auto &i_nei : h_sim[query_i])
+        {
+            if (judge_demoinate(i_nei.sim_vec, index_order_epsilon) == false)
+                continue; // this neighbor cannot add to current community
+            nei_num++;
+        }
+        if (nei_num < p_mu)
+        {
+            cout << query_i << " Cannot search a SCAN-like community" << endl;
+            return;
+        }
+    }
+    cs_node_q.push(query_i);
+    is_in_community[query_i] = true;
+
+    while (!cs_node_q.empty())
+    {
+        int vertex_i = cs_node_q.front();
+        cs_node_q.pop();
+        if (index_judge_core(vertex_i, p_mu))
+        {
+            for (const auto &i_nei : h_sim[vertex_i])
+            {
+                if (is_in_community[i_nei.neighbor_i])
+                    continue; // this neighbor has been add to community
+                if (judge_demoinate(i_nei.sim_vec, index_order_epsilon) == false)
+                    continue; // this neighbor cannot add to current community
+                cs_node_q.push(i_nei.neighbor_i);
+                is_in_community[i_nei.neighbor_i] = true;
+            }
+        }
+        else
+        {
+            vector<int> nei_ids;
+            nei_ids.reserve(p_mu);
+            for (const auto &i_nei : h_sim[query_i])
+            {
+                if (judge_demoinate(i_nei.sim_vec, index_order_epsilon) == false)
+                    continue; // this neighbor cannot add to current community
+                nei_ids.push_back(i_nei.neighbor_i);
+            }
+            if (nei_ids.size() >= p_mu)
+            {
+                for (const auto nei_i : nei_ids)
+                {
+                    if (is_in_community[nei_i] == true)
+                        continue;
+                    cs_node_q.push(nei_i);
+                    is_in_community[nei_i] = true;
+                }
+            }
+        }
+    }
+    has_community++;
+}
+
 void HinGraph::index_query_()
 {
     load_all_similarity();
@@ -676,7 +739,7 @@ void HinGraph::index_query_()
 
     cout << "start index query " << endl;
     long all_time = 0;
-    int has_community = 0;
+    has_community = 0;
     vector<long> time_cost(query_node_num, 0);
     for (int i = 0; i < query_node_num; i++)
     {
@@ -688,32 +751,38 @@ void HinGraph::index_query_()
         Timer t1;
         t1.Start();
 
-        // if (query_i == 2107)
-        //     cout << "error" << endl;
-
-        if (index_judge_core(query_i, p_mu) == false)
+        if (mode_query == 12)
         {
-            cout << query_i << " Cannot search a community" << endl;
+            query_index_scan();
         }
         else
         {
-            cs_node_q.push(query_i);
-            while (!cs_node_q.empty())
-            { // get all k-core
-                int vertex_i = cs_node_q.front();
-                cs_node_q.pop();
-                for (const auto &i_nei : h_sim[vertex_i])
-                {
-                    if (is_in_community[i_nei.neighbor_i])
-                        continue; // this neighbor has been add to community
-                    if (judge_demoinate(i_nei.sim_vec, index_order_epsilon) == false)
-                        continue; // this neighbor cannot add to current community
-                    if (index_judge_core(i_nei.neighbor_i, p_mu) == false)
-                        continue; // this neighbor is not a core
-                    cs_node_q.push(i_nei.neighbor_i);
-                }
+            if (index_judge_core(query_i, p_mu) == false)
+            {
+                cout << query_i << " Cannot search a community" << endl;
             }
-            has_community += 1;
+            else
+            {
+                cs_node_q.push(query_i);
+                is_in_community[query_i] = true;
+                while (!cs_node_q.empty())
+                { // get all k-core
+                    int vertex_i = cs_node_q.front();
+                    cs_node_q.pop();
+                    for (const auto &i_nei : h_sim[vertex_i])
+                    {
+                        if (is_in_community[i_nei.neighbor_i])
+                            continue; // this neighbor has been add to community
+                        if (judge_demoinate(i_nei.sim_vec, index_order_epsilon) == false)
+                            continue; // this neighbor cannot add to current community
+                        if (index_judge_core(i_nei.neighbor_i, p_mu) == false)
+                            continue; // this neighbor is not a core
+                        cs_node_q.push(i_nei.neighbor_i);
+                        is_in_community[i_nei.neighbor_i] = true;
+                    }
+                }
+                has_community += 1;
+            }
         }
 
         long cost_time = t1.StopTime();
@@ -814,11 +883,11 @@ bool HinGraph::index_judge_core(int i, int k)
     {
         if (judge_demoinate(t_v, index_order_epsilon))
         {
-            is_in_community[i] = true;
+            // is_in_community[i] = true;
             return true;
         }
     }
-    is_in_community[i] = false;
+    // is_in_community[i] = false;
     return false;
 }
 
@@ -1074,7 +1143,6 @@ void HinGraph::search_d_neighbor()
     for (int i = 0; i < num_query_type_; i++)
     {
         int query_vertex_id = i + query_type_offset_;
-        // cout << "query_vertex_id: " << i << " \n";
         queue<pair<int, int>> bfs_path;
         unordered_set<int> v_vertex;
         bfs_path.push(make_pair(query_vertex_id, 0));
@@ -1083,8 +1151,6 @@ void HinGraph::search_d_neighbor()
         {
             int curVertex_id = bfs_path.front().first, cur_step = bfs_path.front().second;
             int cur_type = get_vertex_type(curVertex_id);
-            // int cur_dis = distance_[cur_type];
-            // cout << curVertex_id << " " << cur_type << " " << cur_dis << " -- ";
             bfs_path.pop();
 
             dn_adj_List[i].d_neighbor_[cur_type].push_back(curVertex_id);
@@ -1104,10 +1170,10 @@ void HinGraph::search_d_neighbor()
                     continue;
                 }
                 int nei_dis = distance_[nei_type];
-                if (nei_dis == -1)
-                { // this type neighbor is unconsidered. continue
-                    continue;
-                }
+                // if (nei_dis == -1)
+                // { // this type neighbor is unconsidered. continue
+                //     continue;
+                // }
 
                 v_vertex.insert(nei_id);
                 bfs_path.push(make_pair(nei_id, cur_step + 1));

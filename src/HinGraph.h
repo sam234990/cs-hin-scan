@@ -113,6 +113,7 @@ private:
 
     // imporve_index variables
     int all_community_num;
+    int has_community;
 
     // pscan variables
     vector<bool> visited_qtv_;
@@ -179,6 +180,7 @@ private:
 
     // index query
     void index_query_();
+    void query_index_scan();
     bool index_judge_core(int i, int k);
     void select_query_node();
 
