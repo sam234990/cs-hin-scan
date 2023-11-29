@@ -118,7 +118,7 @@ private:
     // pscan variables
     vector<bool> visited_qtv_;
     vector<int> similar_degree;
-    // vector<int> effective_degree;
+    vector<int> effective_degree;
 
     // cs variable
     vector<vector<int>> cand_sn_list; // candidate structure neighbor
@@ -133,6 +133,9 @@ private:
     void initialize_query_();
     void reinitialize_query_();
     void baseline_query_();
+    void online_query_scan();
+    void scan_check_cluster_core(int u);
+
     // void improved_query_();
 
     // void estimate_best_order(vector<int> &order_type);

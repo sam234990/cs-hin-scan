@@ -169,7 +169,7 @@ void HinGraph::cs_hin_scan(string query_file, string mode)
         {
             mode_query = 1;
         }
-        else if (mode == "-q2")
+        else if (mode == "-qSCAN")
         {
             mode_query = 2;
             baseline_query_();
@@ -180,7 +180,7 @@ void HinGraph::cs_hin_scan(string query_file, string mode)
             mode_query = 3;
         }
         // improved_query_();
-        baseline_query_();
+        // baseline_query_();
     }
 
     // count_core_vertices();
@@ -477,7 +477,7 @@ void HinGraph::initialize_query_()
     is_in_community.resize(num_query_type_);
     res_community.resize(num_query_type_);
     similar_degree.resize(num_query_type_);
-    // effective_degree.resize(num_query_type_);
+    effective_degree.resize(num_query_type_);
     cand_core_.resize(num_query_type_);
     cout << "finish initial" << endl;
     return;
@@ -530,7 +530,7 @@ void HinGraph::reinitialize_query_()
         is_in_community[i] = false;
         res_community[i] = false;
         similar_degree[i] = 0;
-        // effective_degree[i] = 0;
+        effective_degree[i] = 0;
         cand_core_[i] = false;
     }
     mlq.initial(num_query_type_);
@@ -564,9 +564,10 @@ void HinGraph::print_result(bool print_all, long use_time)
 
     if (similar_degree[query_i] >= p_mu)
     {
-        if (mode_query == 1)
+        int num_community = 0;
+        if (mode_query == 2)
         {
-            int num_community = 0, core_num = 0;
+            int core_num = 0;
             for (int i = 0; i < num_query_type_; i++)
             {
                 if (is_in_community[i])
@@ -585,25 +586,26 @@ void HinGraph::print_result(bool print_all, long use_time)
                 }
             }
 
-            cout << query_i + query_type_offset_ << " community contains Num(V) : " << num_community;
-            cout << " Core number: " << core_num;
+            cout << query_i << " community contains Num(V) : " << num_community;
+            // cout << " Core number: " << core_num;
             cout << ". Use time: " << use_time << endl;
-            return;
         }
-        int num_community = 0;
-        for (int i = 0; i < num_query_type_; i++)
+        else
         {
-            if (res_community[i])
+            for (int i = 0; i < num_query_type_; i++)
             {
-                num_community++;
-                if (print_all)
-                    cout << i << " ";
+                if (res_community[i])
+                {
+                    num_community++;
+                    if (print_all)
+                        cout << i << " ";
+                }
             }
+            if (print_all)
+                cout << endl;
+            cout << query_i << " community contains Num(V) : " << num_community;
+            cout << ". Use time: " << use_time << endl;
         }
-        if (print_all)
-            cout << endl;
-        cout << query_i << " community contains Num(V) : " << num_community;
-        cout << ". Use time: " << use_time << endl;
     }
 }
 
@@ -623,23 +625,30 @@ void HinGraph::baseline_query_()
 
         Timer t1;
         t1.Start();
-        search_k_strata(query_i);
-        search_cand_sn(query_i);
-        check_sn(query_i, cs_node_q, delete_q);
-        if (similar_degree[query_i] < p_mu)
+        if (mode_query == 2)
         {
-            cout << query_i << " Cannot search a community" << endl;
+            online_query_scan();
         }
         else
         {
-            while (!cs_node_q.empty())
-            { // get Homo Graph
-                int vertex_i = cs_node_q.front();
-                cs_node_q.pop();
-                search_cand_sn(vertex_i);
-                check_sn(vertex_i, cs_node_q, delete_q);
+            search_k_strata(query_i);
+            search_cand_sn(query_i);
+            check_sn(query_i, cs_node_q, delete_q);
+            if (similar_degree[query_i] < p_mu)
+            {
+                cout << query_i << " Cannot search a community" << endl;
             }
-            core_decomposition(delete_q);
+            else
+            {
+                while (!cs_node_q.empty())
+                { // get Homo Graph
+                    int vertex_i = cs_node_q.front();
+                    cs_node_q.pop();
+                    search_cand_sn(vertex_i);
+                    check_sn(vertex_i, cs_node_q, delete_q);
+                }
+                core_decomposition(delete_q);
+            }
         }
 
         long cost_time = t1.StopTime();
@@ -647,10 +656,170 @@ void HinGraph::baseline_query_()
         time_cost[i] = cost_time;
         print_result(false, cost_time);
         // if (query_i + query_type_offset_ == 4860)
-        //     break;
+            // break;
     }
     string str1 = "finish query " + to_string(query_node_num) + " times, use time:";
     Timer::PrintTime(str1, all_time);
+}
+
+void HinGraph::online_query_scan()
+{
+    search_k_strata(query_i);
+    search_cand_sn(query_i);
+    scan_check_cluster_core(query_i);
+    if (similar_degree[query_i] < p_mu)
+    {
+        cout << query_i << " Cannot search a SCAN-like community" << endl;
+    }
+    else
+    {
+        while (!mlq.empty())
+        {
+            int vertex_i = mlq.get_next();
+            if (vertex_i == -1)
+                break;
+            while (visited_qtv_[vertex_i]) // this vertex has been visited
+            {
+                vertex_i = mlq.get_next();
+                if (vertex_i == -1)
+                    break;
+            }
+            if (vertex_i == -1)
+                break;
+            search_cand_sn(vertex_i);
+            scan_check_cluster_core(vertex_i);
+        }
+    }
+}
+
+void HinGraph::scan_check_cluster_core(int u)
+{
+    // 1. check core
+    int vertex_u_id = u + query_type_offset_;
+    int j = 0;
+    unordered_set<int> v_vertex(qn_adj_List[u].begin(), qn_adj_List[u].end());
+    for (auto not_i : non_sn_list[u])
+        v_vertex.insert(not_i);
+
+    if (similar_degree[u] < p_mu)
+    {
+        similar_degree[u] = qn_adj_List[u].size();
+        effective_degree[u] = cand_sn_list[u].size();
+        // vector<int> tmp_in_com;
+        // tmp_in_com.reserve(cand_sn_list[u].size());
+        for (; j < cand_sn_list[u].size(); j++)
+        {
+            int v_id = cand_sn_list[u][j];
+            int v = v_id - query_type_offset_;
+            if (v_vertex.find(v_id) != v_vertex.end()) // this sn has been computed before
+                continue;
+            // if ((mode_query == 2) && is_in_community[v] == true)
+            // {
+            //     tmp_in_com.push_back(v_id);
+            //     continue;
+            // }
+
+            bool sim_res = check_struc_sim(u, v);
+            if (sim_res)
+            {
+                similar_degree[u]++;
+                qn_adj_List[u].push_back(v_id);
+            }
+            else
+                effective_degree[u]--;
+
+            if (visited_qtv_[v] == false && v != u)
+            {
+                if (sim_res)
+                {
+                    similar_degree[v]++;
+                    qn_adj_List[v].push_back(vertex_u_id);
+                }
+                else
+                    non_sn_list[v].push_back(vertex_u_id);
+            }
+            if (effective_degree[u] < p_mu || similar_degree[u] >= p_mu)
+                break;
+        }
+        // for (auto in_v_id : tmp_in_com)
+        // {
+        //     int v = in_v_id - query_type_offset_;
+        //     bool sim_res = check_struc_sim(u, v);
+        //     if (sim_res)
+        //     {
+        //         similar_degree[u]++;
+        //         qn_adj_List[u].push_back(in_v_id);
+        //     }
+        //     else
+        //         effective_degree[u]--;
+
+        //     if (visited_qtv_[v] == false && v != u)
+        //     {
+        //         if (sim_res)
+        //         {
+        //             similar_degree[v]++;
+        //             qn_adj_List[v].push_back(vertex_u_id);
+        //         }
+        //         else
+        //             non_sn_list[v].push_back(vertex_u_id);
+        //     }
+        //     if (effective_degree[u] < p_mu || similar_degree[u] >= p_mu)
+        //         break;
+        // }
+    }
+    visited_qtv_[u] = true;
+
+    // 2. cluster core
+    if (similar_degree[u] < p_mu)
+    {
+        cand_core_[u] = false;
+        return;
+    }
+    cand_core_[u] = true;
+    for (auto visit_sn_id : qn_adj_List[u])
+    {
+        int sn_i = visit_sn_id - query_type_offset_;
+        if (is_in_community[sn_i] == false)
+        {
+            is_in_community[sn_i] = true; // add into community
+            mlq.push(sn_i, similar_degree[sn_i]);
+        }
+    }
+    for (; j < cand_sn_list[u].size(); j++)
+    {
+        int v_id = cand_sn_list[u][j];
+        int v = v_id - query_type_offset_;
+        if (is_in_community[v] == true) // already in community
+            continue;
+        if (v_vertex.find(v_id) != v_vertex.end()) // this sn has been computed before
+            continue;
+        // if (ks_visit[v] == false) // this vertex has not searched k-strata
+        // search_k_strata(v);
+
+        bool sim_res = check_struc_sim(u, v);
+        if (sim_res)
+        {
+            similar_degree[u]++;
+            qn_adj_List[u].push_back(v_id);
+        }
+
+        if (visited_qtv_[v] == false && v != u)
+        {
+            if (sim_res)
+            {
+                similar_degree[v]++;
+                qn_adj_List[v].push_back(vertex_u_id);
+                if (is_in_community[v] == false)
+                {
+                    is_in_community[v] = true;
+                    mlq.push(v, similar_degree[v]);
+                }
+            }
+            else
+                non_sn_list[v].push_back(vertex_u_id);
+        }
+    }
+    return;
 }
 
 void HinGraph::query_index_scan()
@@ -695,7 +864,7 @@ void HinGraph::query_index_scan()
         {
             vector<int> nei_ids;
             nei_ids.reserve(p_mu);
-            for (const auto &i_nei : h_sim[query_i])
+            for (const auto &i_nei : h_sim[vertex_i])
             {
                 if (judge_demoinate(i_nei.sim_vec, index_order_epsilon) == false)
                     continue; // this neighbor cannot add to current community
@@ -875,10 +1044,6 @@ void HinGraph::select_query_node()
 
 bool HinGraph::index_judge_core(int i, int k)
 {
-    // if (k < 0 || k >= node_k_thres[i].size())
-    // {
-    //     return false;
-    // }
     for (const auto &t_v : node_k_thres[i].thres_vecs)
     {
         if (judge_demoinate(t_v, index_order_epsilon))
