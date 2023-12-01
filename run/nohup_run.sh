@@ -2,31 +2,34 @@
 
 # option="fidx"
 # option="qidx"
-option="qidxSCAN"
+option="fidxmutree"
+# option="qidxSCAN"
 # option="q"
 # option="f"
 # /mnt/data/wangshu/scan/amazon/
-# datasets="DBLP_2"
 datasets="amazon"
+# datasets="DBLP_2"
+# datasets="DBPedia"
 # datasets="IMDB_2"
 # datasets="foursquare"
 input_dir="/mnt/data/wangshu/scan/$datasets"
 output_path="/mnt/data/wangshu/scan/$datasets"
 # query_file_name="foursquare_query_1.txt"
+# query_file_name="query_DBP.txt"
 query_file_name="query_1.txt"
 # query_file_name="query_type0.txt"
 query_file="./$query_file_name"
 log_file="../debug_result/$datasets-${query_file_name%.txt}-$option.log"
 
-nohup ./cs_hin_scan -$option $input_dir $query_file \
-    > $log_file 2>&1 &
-
-# start_k="3"
-# log_file="../debug_result/fidx/$datasets-${query_file_name%.txt}-$start_k-$option.log"
-
-
-# nohup ./cs_hin_scan -$option $input_dir $query_file $start_k \
+# nohup ./cs_hin_scan -$option $input_dir $query_file \
 #     > $log_file 2>&1 &
+
+start_k="3"
+log_file="../debug_result/fidx/$datasets-${query_file_name%.txt}-$start_k-$option.log"
+
+
+nohup ./cs_hin_scan -$option $input_dir $query_file $start_k \
+    > $log_file 2>&1 &
 
 
 # k_values=(7 9 11 13 15)

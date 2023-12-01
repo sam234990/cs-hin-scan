@@ -4,6 +4,7 @@
 #include "utils.h"
 #include "timer.h"
 #include "multiLevelQueue.h"
+#include "MuTree.h"
 #include <vector>
 #include <string>
 #include <bitset>
@@ -181,6 +182,10 @@ private:
     bool bfs_community(int start_i, vector<int> &visit, const vector<bool> fix_vertex,
                        int community_num, bitset<SP_SIZE + 1> &c_dim1);
 
+    // MuTree index
+    void build_tree_index(int start_k);
+    void build_one_type_tree(int k, int type_j, int cons);
+
     // index query
     void index_query_();
     void query_index_scan();
@@ -199,6 +204,7 @@ private:
 
 public:
     // index variables
+    vector<MuTree> index_tree;
 
     HinGraph(string data_dir);
     ~HinGraph();

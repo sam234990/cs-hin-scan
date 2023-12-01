@@ -1,13 +1,14 @@
 #!/bin/bash
 
 # option="fidx"
-option="f"
-# option="q3"
+# option="f"
+option="q"
 # option="qidx"
-datasets="IMDB_2"
+datasets="DBPedia"
 input_dir="/mnt/data/wangshu/scan/$datasets"
 index_output_path="/mnt/data/wangshu/scan/$datasets"
-query_file="/home/wangshu/graphs_a/hin_scan/run/query_1.txt"
+query_file_name="query_DBP.txt"
+query_file="./$query_file_name"
 result_output_path="/home/wangshu/graphs_a/hin_scan/scan_result"
 
 ./cs_hin_scan -$option $input_dir $input_dir \

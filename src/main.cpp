@@ -62,7 +62,7 @@ int main(int argc, char const *argv[])
         }
         get_memory_usage();
     }
-    else if (option == "-fidx" || option == "-fidx1")
+    else if (option == "-fidx" || option == "-fidx1"|| option == "-fidxmutree")
     { // build index
         if (argc < 4)
         {
