@@ -62,7 +62,7 @@ int main(int argc, char const *argv[])
         }
         get_memory_usage();
     }
-    else if (option == "-fidx" || option == "-fidx1"|| option == "-fidxmutree")
+    else if (option == "-fidx" || option == "-fidx1" || option == "-fidxmutree")
     { // build index
         if (argc < 4)
         {
@@ -73,7 +73,7 @@ int main(int argc, char const *argv[])
         string input_path = argv[2];
         string idx_query_file = argv[3];
         int start_k = std::stoi(argv[4]);
-        cout << "Option: -fidx" << endl;
+        cout << "Option: " << option << endl;
         cout << "Input Path: " << input_path << endl;
         cout << "Index Query File: " << idx_query_file << endl;
         HinGraph g1 = HinGraph(input_path);

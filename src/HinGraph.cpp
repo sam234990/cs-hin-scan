@@ -2071,6 +2071,8 @@ void HinGraph::improve_k_thres(int start_k)
         node_k_thres[i].used_neighbor.resize(h_sim[i].size(), false);
     }
 
+    all_community_num = num_query_type_ / start_k;
+
     Timer t1;
     t1.Start();
     int k = start_k;
