@@ -1,10 +1,10 @@
 #/bin/bash
 
-option="fidx1"
+# option="fidx1"
 # option="qidx"
 # option="fidxmutree"
 # option="qidxSCAN"
-# option="q"
+option="qSCAN"
 # option="f"
 # /mnt/data/wangshu/scan/amazon/
 # datasets="amazon"
@@ -19,17 +19,17 @@ output_path="/mnt/data/wangshu/scan/$datasets"
 query_file_name="query_1.txt"
 # query_file_name="query_type0.txt"
 query_file="./$query_file_name"
-# log_file="../debug_result/$datasets-${query_file_name%.txt}-$option.log"
+log_file="../debug_result/$datasets-${query_file_name%.txt}-$option.log"
 
-# nohup ./cs_hin_scan -$option $input_dir $query_file \
-#     > $log_file 2>&1 &
-
-start_k="5"
-log_file="../debug_result/fidx/$datasets-${query_file_name%.txt}-$start_k-$option.log"
-
-
-nohup ./cs_hin_scan -$option $input_dir $query_file $start_k \
+nohup ./cs_hin_scan -$option $input_dir $query_file \
     > $log_file 2>&1 &
+
+# start_k="5"
+# log_file="../debug_result/fidx/$datasets-${query_file_name%.txt}-$start_k-$option.log"
+
+
+# nohup ./cs_hin_scan -$option $input_dir $query_file $start_k \
+#     > $log_file 2>&1 &
 
 
 # k_values=(7 9 11 13 15)

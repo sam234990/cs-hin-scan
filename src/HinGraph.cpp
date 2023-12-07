@@ -697,6 +697,7 @@ void HinGraph::online_query_scan()
     if (similar_degree[query_i] < p_mu)
     {
         cout << query_i << " Cannot search a SCAN-like community" << endl;
+        is_in_community[query_i] = false;
     }
     else
     {
