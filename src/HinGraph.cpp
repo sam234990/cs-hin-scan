@@ -1577,8 +1577,8 @@ void HinGraph::compute_all_similarity()
         }
         compute_domin_rank(qn_sim);
         h_sim[i] = move(qn_sim);
-        // if (i % (num_query_type_ / 10) == 0)
-        cout << i << endl;
+        if (i % (num_query_type_ / 10) == 0)
+            cout << i << endl;
     }
 }
 
