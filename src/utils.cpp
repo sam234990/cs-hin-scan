@@ -221,11 +221,20 @@ void utils::read_and_print_graph()
 	}
 
 	// sort each neighbor
-	int start = 0, end = 0;
+	int start = 0, end = 0, edge_cnt = 0;
+
 	for (int i = 0; i < n; i++)
 	{
 		sort(edges_[i].begin(), edges_[i].end(), compareVertex);
+		auto it = std::unique(edges_[i].begin(), edges_[i].end(),
+							  [](const Vertex_type &v1, const Vertex_type &v2)
+							  {
+								  return v1.v_id == v2.v_id;
+							  });
+		edges_[i].erase(it, edges_[i].end());
+		edge_cnt += edges_[i].size();
 	}
+	m = edge_cnt;
 	cout << m << " -- " << line_num << " -- " << int(m == line_num) << endl;
 	graph_file.close();
 	return;
@@ -405,7 +414,7 @@ void utils::process_vertex()
 	for (auto it = vertex_map.begin(); it != vertex_map.end(); it++, i++)
 	{
 		vertex_start_map_.push_back(cur_v_num);
-		cout << "type : " << i << " -- start_num : " << cur_v_num << endl;
+		cout << "type : " << i << " -- start_num : " << cur_v_num << " source type: " << it->first << endl;
 		const vector<int> v_st = it->second;
 		for (int source_id : v_st)
 		{

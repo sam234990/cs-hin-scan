@@ -1,10 +1,11 @@
 #!/bin/bash
 
 # option="fidx"
-# option="f"
-option="q"
+option="f"
+# option="q"
 # option="qidx"
-datasets="DBPedia"
+datasets="IMDB_2"
+# datasets="DBPedia"
 input_dir="/mnt/data/wangshu/scan/$datasets"
 index_output_path="/mnt/data/wangshu/scan/$datasets"
 query_file_name="query_DBP.txt"

@@ -319,11 +319,13 @@ void HinGraph::load_query_file(string query_file_path)
                 if (i == 0 && query_node_list[i] == -1)
                 { // use random ids
                     random_query = true;
+                    cout << "use random query id" << endl;
                     break;
                 }
                 if (i == 0 && query_node_list[i] == -2)
                 { // use selected ids
                     selected_ids = true;
+                    cout << "use selected query id" << endl;
                     break;
                 }
             }
@@ -499,18 +501,19 @@ void HinGraph::initialize_query_()
 
 void HinGraph::initial_construct_index()
 {
-    for (const auto &entry : distance_)
+    for (const auto &entry : type_epsilon)
     {
-        int vertex_type = entry.first, distance = entry.second;
-        if (distance >= 1)
+        // int vertex_type = entry.first, distance = entry.second;
+        int vertex_type = entry.first;
+        // if (distance >= 1)
+        int type_start = vertex_start_map_[vertex_type];
+        int type_end = (vertex_type + 1) == n_types ? n : vertex_start_map_[vertex_type + 1];
+        for (int j = type_start; j < type_end; j++)
         {
-            int type_start = vertex_start_map_[vertex_type];
-            int type_end = (vertex_type + 1) == n_types ? n : vertex_start_map_[vertex_type + 1];
-            for (int j = type_start; j < type_end; j++)
-            {
-                t_hop_visited[j] = vector<int>();
-                t_hop_visited.reserve(initial_vector_size);
-            }
+            int nei_edge_start = vertex_offset_[j];
+            int nei_end = ((j + 1) == n) ? m : vertex_offset_[j + 1];
+            t_hop_visited[j] = vector<int>();
+            t_hop_visited[j].reserve((nei_end - nei_edge_start + 3));
         }
     }
     node_k_thres.resize(num_query_type_);
@@ -527,6 +530,8 @@ void HinGraph::initial_construct_index()
         if (pair.second == 0)
             continue;
         index_type_order.push_back(pair.first);
+        empty_dn_set[pair.first].clear();
+        empty_dn_set[pair.first].reserve(num_query_type_);
         cout << pair.first << " ";
     }
     cout << endl;
@@ -1372,7 +1377,7 @@ void HinGraph::search_d_neighbor()
 
                 v_vertex.insert(nei_id);
                 bfs_path.push(make_pair(nei_id, cur_step + 1));
-                if (nei_dis >= 1)
+                if (nei_type != p_query_type)
                 {
                     t_hop_visited[nei_id].push_back(query_vertex_id); // add to visited
                 }
@@ -1572,10 +1577,8 @@ void HinGraph::compute_all_similarity()
         }
         compute_domin_rank(qn_sim);
         h_sim[i] = move(qn_sim);
-        if (i % (num_query_type_ / 10) == 0)
-        {
-            cout << i << endl;
-        }
+        // if (i % (num_query_type_ / 10) == 0)
+        cout << i << endl;
     }
 }
 
@@ -2829,8 +2832,8 @@ int HinGraph::compute_one_type_qn_similarity(int i, int type_i, vector<Query_nei
     vector<int> &dn_i_type_i = dn_adj_List[i].d_neighbor_[type_i];
     if (dn_i_type_i.size() == 0)
     {
-        if (mode_query == 0)
-            return 0;
+        // if (empty_dn_set[type_i].size() > (num_query_type_ / 10))
+        return 0;
         type_i_qn_similarity.reserve(empty_dn_set[type_i].size());
         for (const auto &qn_i : empty_dn_set[type_i])
         {
@@ -2885,12 +2888,7 @@ void HinGraph::concat_one_type_qn(const vector<int> &dn_i_type_i, vector<int> &m
     for (const auto &d_n_i : dn_i_type_i)
     {
         const vector<int> &induced_qn = query_type ? dn_adj_List[d_n_i - query_type_offset_].d_neighbor_[query_type] : t_hop_visited[d_n_i];
-        // const vector<int> &induced_qn = t_hop_visited[d_n_i];
-        for (const auto &induced_qn_1 : induced_qn)
-        {
-            mergedVector.push_back(induced_qn_1);
-        }
-        // mergedVector.insert(mergedVector.end(), induced_qn.begin(), induced_qn.end());
+        mergedVector.insert(mergedVector.end(), induced_qn.begin(), induced_qn.end());
     }
     sort(mergedVector.begin(), mergedVector.end());
     mVector = move(mergedVector);
@@ -3038,6 +3036,16 @@ void HinGraph::check_empty_set()
 
         if (empty_dn_set[type].size() != uniqueValues.size())
         {
+            sort(empty_dn_set[type].begin(), empty_dn_set[type].end());
+            int prev = empty_dn_set[type][0];
+            for (int i = 1; i < empty_dn_set[type].size(); i++)
+            {
+                if (prev == empty_dn_set[type][i])
+                    cout << prev << " ";
+                else
+                    prev = empty_dn_set[type][i];
+            }
+            cout << endl;
             cout << "type " << type << " empty query vertices contains duplicate numbers. " << endl;
         }
         cout << "type " << type << " empty query vertices number is " << empty_dn_set[type].size() << endl;
