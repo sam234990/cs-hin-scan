@@ -1337,8 +1337,8 @@ void HinGraph::search_d_neighbor()
     cout << "search_all_d_neighborhood" << endl;
     cout << "all query type vertices number is " << num_query_type_ << endl;
 
-    vector<int> type_degree_max(5, 0);
-    vector<int> type_degree_min(5, 10);
+    // vector<int> type_degree_max(5, 0);
+    // vector<int> type_degree_min(5, 10);
 
     for (int i = 0; i < num_query_type_; i++)
     {
@@ -1400,22 +1400,22 @@ void HinGraph::search_d_neighbor()
             {
                 sort(dn_adj_List[i].d_neighbor_[type].begin(), dn_adj_List[i].d_neighbor_[type].end());
                 // edge_num[type] += dn_adj_List[i].num_d_neighbor[type];
-                if (dn_adj_List[i].num_d_neighbor[type] > type_degree_max[type])
-                    type_degree_max[type] = dn_adj_List[i].num_d_neighbor[type];
-                if (dn_adj_List[i].num_d_neighbor[type] < type_degree_min[type])
-                    type_degree_min[type] = dn_adj_List[i].num_d_neighbor[type];
+                // if (dn_adj_List[i].num_d_neighbor[type] > type_degree_max[type])
+                //     type_degree_max[type] = dn_adj_List[i].num_d_neighbor[type];
+                // if (dn_adj_List[i].num_d_neighbor[type] < type_degree_min[type])
+                //     type_degree_min[type] = dn_adj_List[i].num_d_neighbor[type];
             }
         }
         if (i % 100000 == 0)
-            cout << i << " -- ";
+            cout << i << " ";
     }
     cout << endl;
-    for (auto &t_d : type_degree_max)
-        cout << t_d << " ";
-    cout << endl;
-    for (auto &t_d : type_degree_min)
-        cout << t_d << " ";
-    cout << endl;
+    // for (auto &t_d : type_degree_max)
+    //     cout << t_d << " ";
+    // cout << endl;
+    // for (auto &t_d : type_degree_min)
+    //     cout << t_d << " ";
+    // cout << endl;
 }
 
 void HinGraph::save_d_n()
@@ -1545,18 +1545,56 @@ void HinGraph::load_d_n()
     return;
 }
 
+void HinGraph::multi_func(int i)
+{
+    vector<Nei_similarity> qn_sim;
+    for (int j = 0; j < index_type_order.size(); j++)
+    {
+        int type_j = index_type_order[j];
+        vector<Query_nei_similarity> type_j_qn_similarity;
+        compute_one_type_qn_similarity(i, type_j, type_j_qn_similarity);
+        if (j == 0)
+        {
+            qn_sim.reserve(type_j_qn_similarity.size());
+            for (const auto nei_sim : type_j_qn_similarity)
+                qn_sim.emplace_back(Nei_similarity{nei_sim.neighbor_i, nei_sim.similarity});
+        }
+        else
+            intersection_neisim(qn_sim, type_j_qn_similarity);
+    }
+    compute_domin_rank(qn_sim);
+    h_sim[i] = move(qn_sim);
+    if (i % (num_query_type_ / 100) == 0)
+        cout << i << endl;
+}
+
 void HinGraph::compute_all_similarity()
 {
     cout << "compute all similarity";
-    // for (const auto pair : type_epsilon)
-    // {
-    //     if (pair.second == 0)
-    //         continue;
-    //     index_type_order.push_back(pair.first);
-    //     cout << pair.first << " ";
-    // }
-    // cout << endl;
     h_sim.resize(num_query_type_);
+
+    if (num_query_type_ >= 100000)
+    {
+        const int num_threads = std::thread::hardware_concurrency(); 
+        std::vector<std::thread> threads;
+        for (int i = 0; i < num_query_type_; i += num_threads)
+        {
+            for (int j = 0; j < num_threads && (i + j) < num_query_type_; ++j)
+            {
+                auto thread_func = std::bind(&HinGraph::multi_func, this, i + j);
+                threads.emplace_back(thread_func);
+            }
+            for (auto &thread : threads)
+            {
+                if (thread.joinable())
+                {
+                    thread.join();
+                }
+            }
+            threads.clear();
+        }
+        return;
+    }
 
     for (int i = 0; i < num_query_type_; i++)
     {
@@ -1577,7 +1615,7 @@ void HinGraph::compute_all_similarity()
         }
         compute_domin_rank(qn_sim);
         h_sim[i] = move(qn_sim);
-        if (i % (num_query_type_ / 10) == 0)
+        if (i % (num_query_type_ / 100) == 0)
             cout << i << endl;
     }
 }
@@ -2833,7 +2871,7 @@ int HinGraph::compute_one_type_qn_similarity(int i, int type_i, vector<Query_nei
     if (dn_i_type_i.size() == 0)
     {
         // if (empty_dn_set[type_i].size() > (num_query_type_ / 10))
-        return 0;
+        // return 0;
         type_i_qn_similarity.reserve(empty_dn_set[type_i].size());
         for (const auto &qn_i : empty_dn_set[type_i])
         {

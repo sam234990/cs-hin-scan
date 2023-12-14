@@ -17,6 +17,8 @@
 #include <unordered_set>
 #include <queue>
 #include <cmath>
+#include <thread>
+#include <functional>  // 添加这个头文件
 
 struct Vertex_neighbor
 {
@@ -155,6 +157,7 @@ private:
     void save_d_n();
     void load_d_n();
 
+    void multi_func(int i);
     void compute_all_similarity();
     int compute_one_type_qn_similarity(int i, int type_i, vector<Query_nei_similarity> &type_i_qn_similarity);
     void concat_one_type_qn(const vector<int> &dn_i_type_i, vector<int> &mVector, bool query_type);

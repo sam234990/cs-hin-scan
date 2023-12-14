@@ -15,7 +15,7 @@ datasets="DBPedia"
 input_dir="/mnt/data/wangshu/scan/$datasets"
 output_path="/mnt/data/wangshu/scan/$datasets"
 # query_file_name="foursquare_query_1.txt"
-query_file_name="query_DBP.txt"
+query_file_name="query_DBP88.txt"
 # query_file_name="query_1.txt"
 # query_file_name="query_type0.txt"
 query_file="./$query_file_name"
@@ -28,7 +28,7 @@ query_file="./$query_file_name"
 
 # 2. index run
 start_k="3"
-log_file="../debug_result/fidx/$datasets-${query_file_name%.txt}-$start_k-$option.log"
+log_file="../debug_result/fidx/m$datasets-${query_file_name%.txt}-$start_k-$option.log"
 
 
 nohup ./cs_hin_scan -$option $input_dir $query_file $start_k \
