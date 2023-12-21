@@ -369,7 +369,8 @@ void HinGraph::load_query_file(string query_file_path)
     if (selected_ids)
     { // use selected ids
         cout << "use Selected node for query" << endl;
-        string selected_ids_path = data_dir_ + "/selected_ids.txt";
+        // string selected_ids_path = data_dir_ + "/selected_ids.txt";
+        string selected_ids_path = data_index_dir_ + "/" + to_string(p_query_type) +"/selected_ids.txt";
         ifstream selected_ids_file = open_file_fstream(selected_ids_path);
         for (int i = 0; i < query_node_num; i++)
         {
@@ -1065,7 +1066,8 @@ void HinGraph::select_query_node()
     }
 
     cout << "start save community number" << endl;
-    string community_num_path = data_index_dir_ + "/community_num.txt";
+    // string community_num_path = data_index_dir_ + "/community_num.txt";
+    string community_num_path = data_index_dir_ + "/" + to_string(p_query_type) +"/community_num.txt";
     ofstream community_num_file = open_file_ofstream(community_num_path);
     for (int i = 0; i < num_query_type_; i++)
     {
@@ -1615,7 +1617,7 @@ void HinGraph::compute_all_similarity()
         }
         compute_domin_rank(qn_sim);
         h_sim[i] = move(qn_sim);
-        if (i % (num_query_type_ / 100) == 0)
+        if (i % (num_query_type_ / 10) == 0)
             cout << i << endl;
     }
 }

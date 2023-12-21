@@ -9,21 +9,21 @@ option="fidx1"
 # /mnt/data/wangshu/scan/amazon/
 # datasets="amazon"
 # datasets="DBLP_2"
-datasets="DBPedia"
-# datasets="IMDB_2"
-# datasets="foursquare"
+# datasets="DBPedia"
+datasets="IMDB_2"
+# datasets="FreeBase"
 input_dir="/mnt/data/wangshu/scan/$datasets"
 output_path="/mnt/data/wangshu/scan/$datasets"
 # query_file_name="foursquare_query_1.txt"
-query_file_name="query_DBP88.txt"
-# query_file_name="query_1.txt"
+# query_file_name="query_DBP88.txt"
+query_file_name="query_1.txt"
 # query_file_name="query_type0.txt"
 query_file="./$query_file_name"
 
 # 1. query run
 # log_file="../debug_result/$datasets-${query_file_name%.txt}-$option.log"
 
-# nohup ./cs_hin_scan -$option $input_dir $query_file \
+# nohup ./cs_hin_scan -$option $input_dir $output_path \
 #     > $log_file 2>&1 &
 
 # 2. index run
