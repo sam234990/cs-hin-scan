@@ -100,6 +100,8 @@ private:
     map<int, int> distance_;
     vector<bool> cand_core_;
     vector<vector<int>> qn_adj_List; // qn
+    vector<int> pa;               // pa and rank are used for the disjoint-set data structure
+    vector<int> p_rank_;
 
     // index variables
     int k_max;
@@ -200,6 +202,9 @@ private:
     int get_vertex_type(int vertex_id);
     double calculateJaccardSimilarity(const vector<int> &vec1, const vector<int> &vec2);
     bool judgeJacSim(const vector<int> &vec1, const vector<int> &vec2, double type_i_epsilon);
+
+    void my_union(int u, int v);
+    int find_root(int u);
 
     // debug check
     void check_empty_set();
