@@ -210,6 +210,8 @@ private:
     void check_empty_set();
     void count_core_vertices();
 
+    void dfs(int cur_i, int step, int types, vector<long> &res);
+
 public:
     // index variables
     vector<MuTree> index_tree;
@@ -221,6 +223,7 @@ public:
     void output_result(string output);
     void cs_hin_scan(string query_file, string mode);
     void construct_index(string query_file, string option, int start_k);
+    void find_meta(int type);
 };
 
 #endif

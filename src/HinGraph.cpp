@@ -213,11 +213,10 @@ void HinGraph::construct_index(string query_file, string option, int start_k)
         cout << "start counput the Similarity graph" << endl;
         search_d_neighbor();
         check_empty_set();
-        if (option == "-fidx_DBP")
-            return;
         save_d_n();
         t1.StopAndPrint("search k-strata time");
-
+        if (option == "-fidx_DBP")
+            return;
         compute_all_similarity();
         save_all_similarity();
     }
@@ -245,6 +244,134 @@ void HinGraph::construct_index(string query_file, string option, int start_k)
     }
 
     return;
+}
+
+void HinGraph::dfs(int cur_i, int step, int types, vector<long> &res)
+{
+    if (step == 4)
+    {
+        res[types] += 1;
+        return;
+    }
+    int nei_edge_start = vertex_offset_[cur_i];
+    int nei_end = ((cur_i + 1) == n) ? m : vertex_offset_[cur_i + 1];
+    if (step == 0)
+    {
+        for (int j = nei_edge_start; j < nei_end; j++)
+        {
+            int nei_type = edges_[j].v_type, nei_id = edges_[j].v_id;
+            if (nei_type == p_query_type)
+                continue;
+            dfs(nei_id, 1, (nei_type + 1) * 1000, res);
+        }
+        return;
+    }
+    if (step == 1)
+    {
+        for (int j = nei_edge_start; j < nei_end; j++)
+        {
+            int nei_type = edges_[j].v_type, nei_id = edges_[j].v_id;
+            if (nei_type == p_query_type)
+                continue;
+            dfs(nei_id, 2, types + nei_type + 1, res);
+        }
+        return;
+    }
+    if (step == 2)
+    {
+        int follow_type = types / 1000 - 1;
+        for (int j = nei_edge_start; j < nei_end; j++)
+        {
+            int nei_type = edges_[j].v_type, nei_id = edges_[j].v_id;
+            if (nei_type != follow_type)
+                continue;
+            dfs(nei_id, 3, types, res);
+        }
+        return;
+    }
+    if (step == 3)
+    {
+        for (int j = nei_edge_start; j < nei_end; j++)
+        {
+            int nei_type = edges_[j].v_type, nei_id = edges_[j].v_id;
+            if (nei_type != p_query_type)
+                continue;
+            dfs(nei_id, 4, types, res);
+        }
+    }
+    return;
+}
+
+void HinGraph::find_meta(int type)
+{
+    cout << "Start find meta-path" << endl;
+    p_query_type = type;
+    // initial query neighbor
+    query_type_offset_ = vertex_start_map_[p_query_type];
+    int end = ((p_query_type + 1) == n_types) ? n : vertex_start_map_[p_query_type + 1];
+    num_query_type_ = end - query_type_offset_;
+    cout << num_query_type_ << endl;
+
+    vector<long> res(1000000, 0);
+    for (int i = 0; i < num_query_type_; i++)
+    {
+        int query_vertex_id = i + query_type_offset_;
+        int start = vertex_offset_[query_vertex_id];
+        int end = ((query_vertex_id + 1) == n) ? m : vertex_offset_[query_vertex_id + 1];
+        for (int j = start; j < end; j++)
+        {
+            int nei_type = edges_[j].v_type, nei_id = edges_[j].v_id;
+            int nei_edge_start = vertex_offset_[nei_id];
+            int nei_end = ((nei_id + 1) == n) ? m : vertex_offset_[nei_id + 1];
+            for (int k = nei_edge_start; k < nei_end; k++)
+            {
+                int type_2 = edges_[k].v_type;
+                if (type_2 == nei_type || type_2 == p_query_type)
+                    continue;
+                int add_meta = (nei_type + 1) * 1000 + type_2 + 1;
+                res[add_meta] += 1;
+            }
+        }
+
+        // dfs(query_vertex_id, 0, 0, res);
+        if (i % (num_query_type_ / 100) == 0)
+            cout << i << endl;
+    }
+    vector<int> indices(1000000);
+    for (int i = 0; i < 1000000; ++i)
+        indices[i] = i;
+    sort(indices.begin(), indices.end(), [&res](int a, int b)
+         { return res[a] > res[b]; });
+    int print_i = 0;
+    for (int i : indices)
+    {
+        if (res[i] == 0)
+            continue;
+        int type_1 = i / 1000 - 1;
+        int type_2 = i % 1000 - 1;
+        std::cout << type_1 << "\t" << type_2 << "\t" << res[i] << std::endl;
+        print_i++;
+        if (print_i > 200)
+            break;
+    }
+    cout << "start save meta-path" << endl;
+    string save_dir = "/home/wangshu/graphs_a/cs_hin_scan/check_result/Freebase";
+    check_dir_path(save_dir);
+    string save_path = save_dir + "/" + to_string(p_query_type) + ".txt";
+    ofstream save_file = open_file_ofstream(save_path);
+    print_i = 0;
+    for (int i : indices)
+    {
+        if (res[i] == 0)
+            continue;
+        int type_1 = i / 1000 - 1;
+        int type_2 = i % 1000 - 1;
+        save_file << type_1 << "\t" << type_2 << "\t" << res[i] << endl;
+        print_i++;
+        if (print_i > 200)
+            break;
+    }
+    cout << "finish save meta-path" << endl;
 }
 
 void HinGraph::load_query_file(string query_file_path)
@@ -1040,6 +1167,8 @@ void HinGraph::select_query_node()
             bs_max_ed = effective_degree[i];
     }
 
+    Timer t1;
+    t1.Start();
     while (true)
     {
         query_i = -1;
@@ -1134,7 +1263,8 @@ void HinGraph::select_query_node()
             is_in_community[com_i] = false;
         }
     }
-
+    t1.StopAndPrint("finished time");
+    // Timer::PrintTime(str1, all_time);
     // for (int i = 0; i < num_query_type_; i++)
     // {
     //     query_i = i;
@@ -1179,7 +1309,7 @@ void HinGraph::select_query_node()
 
     cout << "start save community number" << endl;
     // string community_num_path = data_index_dir_ + "/community_num.txt";
-    string community_num_path = data_index_dir_ + "/" + to_string(p_query_type) + "/community_num.txt";
+    string community_num_path = data_index_dir_ + "/" + to_string(p_query_type) + "/community_num" + to_string(p_mu) + ".txt";
     ofstream community_num_file = open_file_ofstream(community_num_path);
     for (int i = 0; i < num_query_type_; i++)
     {
@@ -1526,10 +1656,9 @@ void HinGraph::search_d_neighbor()
                     type_degree_min[type] = dn_adj_List[i].num_d_neighbor[type];
             }
         }
-        if (i % 100000 == 0)
-            cout << i << " ";
+        if (i % (num_query_type_ / 10) == 0)
+            cout << i << endl;
     }
-    cout << endl;
     for (const auto &pair : type_epsilon)
     {
         int type = pair.first;
@@ -3085,6 +3214,12 @@ void HinGraph::load_k_thres_vec(int k)
 {
     string type_index_path = data_index_dir_ + "/" + to_string(p_query_type);
     string k_thres_path = type_index_path + "/k_thres_" + to_string(k) + ".txt";
+
+    std::ifstream sim_file(k_thres_path.c_str());
+    if (sim_file.good() == false)
+    {
+        k_thres_path = type_index_path + "/improved/k_thres_" + to_string(k) + ".txt";
+    }
 
     ifstream k_thres_file = open_file_fstream(k_thres_path);
     if (!k_thres_file)

@@ -83,6 +83,25 @@ int main(int argc, char const *argv[])
         g1.construct_index(idx_query_file, option, start_k);
         get_memory_usage();
     }
+    else if(option == "-meta"){
+        if (argc < 4)
+        {
+            cerr << "Invalid number of arguments." << endl;
+            cerr << "Usage: " << argv[0] << " -meta <input> type" << endl;
+            return 1;
+        }
+        string input_path = argv[2];
+        int query_type = std::stoi(argv[3]);
+
+        cout << "Option: " << option << endl;
+        cout << "Input Path: " << input_path << endl;
+        cout << "meta-path type: " << query_type  << endl;
+        
+        HinGraph g1 = HinGraph(input_path);
+        g1.load_graph();
+        g1.find_meta(query_type);
+        get_memory_usage();
+    }
     else
     {
         cerr << "Invalid option: " << option << endl;
