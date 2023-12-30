@@ -62,12 +62,12 @@ int main(int argc, char const *argv[])
         }
         get_memory_usage();
     }
-    else if (option == "-fidx" || option == "-fidx1" || option == "-fidxmutree" || option == "-fidx_DBP")
+    else if (option == "-fidx" || option == "-fidx1" || option == "-fidxmutree" || option == "-fidx_DBP" || option == "-fidxscal")
     { // build index
         if (argc < 4)
         {
             cerr << "Invalid number of arguments." << endl;
-            cerr << "Usage: " << argv[0] << " -fidx <input> <idx_query_file>" << endl;
+            cerr << "Usage: " << argv[0] << " -fidx <input> <idx_query_file> [scal]" << endl;
             return 1;
         }
         string input_path = argv[2];
@@ -80,10 +80,17 @@ int main(int argc, char const *argv[])
         g1.load_graph();
         // Call the function to build the index here
         // ...
-        g1.construct_index(idx_query_file, option, start_k);
+        int scale = 100;
+        if (option == "-fidxscal")
+        {
+            scale = std::stoi(argv[5]);
+            cout << "scale test:" << scale << endl;
+        }
+        g1.construct_index(idx_query_file, option, start_k, scale);
         get_memory_usage();
     }
-    else if(option == "-meta"){
+    else if (option == "-meta")
+    {
         if (argc < 4)
         {
             cerr << "Invalid number of arguments." << endl;
@@ -95,8 +102,8 @@ int main(int argc, char const *argv[])
 
         cout << "Option: " << option << endl;
         cout << "Input Path: " << input_path << endl;
-        cout << "meta-path type: " << query_type  << endl;
-        
+        cout << "meta-path type: " << query_type << endl;
+
         HinGraph g1 = HinGraph(input_path);
         g1.load_graph();
         g1.find_meta(query_type);

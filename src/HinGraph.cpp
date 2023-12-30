@@ -194,8 +194,9 @@ void HinGraph::cs_hin_scan(string query_file, string mode)
     // count_core_vertices();
 }
 
-void HinGraph::construct_index(string query_file, string option, int start_k)
+void HinGraph::construct_index(string query_file, string option, int start_k, int scale)
 {
+    option_ = option;
     k_max = start_k;
     load_query_file(query_file);
     check_dir_path(data_index_dir_);
@@ -205,18 +206,27 @@ void HinGraph::construct_index(string query_file, string option, int start_k)
     Timer t1;
     t1.Start();
 
+    if (option == "-fidxscal")
+    {
+        // cout << "scale test:" << scale << endl;
+        scale_ = scale;
+        max_scale_num = num_query_type_ * scale / 100;
+        num_query_type_ = max_scale_num;
+        max_scale_id = max_scale_num + query_type_offset_;
+    }
+
     string type_index_path = data_index_dir_ + "/" + to_string(p_query_type);
     string all_sim_path = type_index_path + "/sim_graph.txt";
     std::ifstream sim_file(all_sim_path.c_str());
-    if (sim_file.good() == false)
+    if (option == "-fidxscal" || sim_file.good() == false)
     {
         cout << "start counput the Similarity graph" << endl;
         search_d_neighbor();
         check_empty_set();
-        save_d_n();
-        t1.StopAndPrint("search k-strata time");
         if (option == "-fidx_DBP")
             return;
+        save_d_n();
+        t1.StopAndPrint("search k-strata time");
         compute_all_similarity();
         save_all_similarity();
     }
@@ -232,7 +242,7 @@ void HinGraph::construct_index(string query_file, string option, int start_k)
     {
         compute_k_threshold(start_k);
     }
-    else if (option == "-fidx1")
+    else if (option == "-fidx1" || option == "-fidxscal")
     {
         mode_query = 101;
         improve_k_thres(start_k);
@@ -1167,6 +1177,10 @@ void HinGraph::select_query_node()
             bs_max_ed = effective_degree[i];
     }
 
+    int community_all_num = 0;
+    vector<int> com_size;
+    com_size.reserve(num_query_type_);
+
     Timer t1;
     t1.Start();
     while (true)
@@ -1262,6 +1276,8 @@ void HinGraph::select_query_node()
             community_number[com_i] = com_num;
             is_in_community[com_i] = false;
         }
+        community_all_num++;
+        com_size.push_back(com_num);
     }
     t1.StopAndPrint("finished time");
     // Timer::PrintTime(str1, all_time);
@@ -1307,6 +1323,12 @@ void HinGraph::select_query_node()
     //     }
     // }
 
+    cout << "community_all_number is " << community_all_num << endl;
+    int tmp_all = 0;
+    for (auto i : com_size)
+        tmp_all += i;
+    double aver_size = tmp_all / community_all_num;
+    cout << "average community number is " << aver_size << endl;
     cout << "start save community number" << endl;
     // string community_num_path = data_index_dir_ + "/community_num.txt";
     string community_num_path = data_index_dir_ + "/" + to_string(p_query_type) + "/community_num" + to_string(p_mu) + ".txt";
@@ -1662,13 +1684,15 @@ void HinGraph::search_d_neighbor()
     for (const auto &pair : type_epsilon)
     {
         int type = pair.first;
-        cout << type << " max " << type_degree_max[type] << " min " << type_degree_min[type] << "||";
+        cout << type << " max " << type_degree_max[type] << " min " << type_degree_min[type] << endl;
     }
     cout << endl;
 }
 
 void HinGraph::save_d_n()
 {
+    if (option_ == "-fidxscal")
+        return;
     cout << "start save d-neighbor" << endl;
     string type_index_path = data_index_dir_ + "/" + to_string(p_query_type);
     check_dir_path(type_index_path);
@@ -1872,7 +1896,11 @@ void HinGraph::compute_all_similarity()
 void HinGraph::save_all_similarity()
 {
     cout << "start save all similarity graph" << endl;
-    string type_index_path = data_index_dir_ + "/" + to_string(p_query_type);
+    string type_index_path;
+    if (option_ == "-fidxscal")
+        type_index_path = data_index_dir_ + "/" + to_string(p_query_type) + "-" + to_string(scale_);
+    else
+        type_index_path = data_index_dir_ + "/" + to_string(p_query_type);
     check_dir_path(type_index_path);
     string all_sim_path = type_index_path + "/sim_graph.txt";
 
@@ -1903,7 +1931,11 @@ void HinGraph::save_all_similarity()
 
 void HinGraph::load_all_similarity()
 {
-    string type_index_path = data_index_dir_ + "/" + to_string(p_query_type);
+    string type_index_path;
+    if (option_ == "-fidxscal")
+        type_index_path = data_index_dir_ + "/" + to_string(p_query_type) + "-" + to_string(scale_);
+    else
+        type_index_path = data_index_dir_ + "/" + to_string(p_query_type);
     string all_sim_path = type_index_path + "/sim_graph.txt";
     ifstream all_sim_file = open_file_fstream(all_sim_path);
 
@@ -3119,8 +3151,9 @@ int HinGraph::compute_one_type_qn_similarity(int i, int type_i, vector<Query_nei
     vector<int> &dn_i_type_i = dn_adj_List[i].d_neighbor_[type_i];
     if (dn_i_type_i.size() == 0)
     {
-        // if (n_types > 100)
-        //     return 0;
+        return 0;
+        if (n_types > 100)
+            return 0;
         type_i_qn_similarity.reserve(empty_dn_set[type_i].size());
         for (const auto &qn_i : empty_dn_set[type_i])
         {
@@ -3184,7 +3217,12 @@ void HinGraph::concat_one_type_qn(const vector<int> &dn_i_type_i, vector<int> &m
 void HinGraph::save_k_thres_vec(int k)
 {
     cout << "start save threshold vector " << k << endl;
-    string type_index_path = data_index_dir_ + "/" + to_string(p_query_type);
+    string type_index_path;
+    if (option_ == "-fidxscal")
+        type_index_path = data_index_dir_ + "/" + to_string(p_query_type) + "-" + to_string(scale_);
+    else
+        type_index_path = data_index_dir_ + "/" + to_string(p_query_type);
+
     if (mode_query == 101)
     {
         type_index_path += "/improved";
@@ -3212,7 +3250,12 @@ void HinGraph::save_k_thres_vec(int k)
 
 void HinGraph::load_k_thres_vec(int k)
 {
-    string type_index_path = data_index_dir_ + "/" + to_string(p_query_type);
+    string type_index_path;
+    if (option_ == "-qidxscal")
+        type_index_path = data_index_dir_ + "/" + to_string(p_query_type) + "-" + to_string(scale_);
+    else
+        type_index_path = data_index_dir_ + "/" + to_string(p_query_type);
+
     string k_thres_path = type_index_path + "/k_thres_" + to_string(k) + ".txt";
 
     std::ifstream sim_file(k_thres_path.c_str());

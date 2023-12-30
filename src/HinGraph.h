@@ -222,8 +222,12 @@ public:
     void load_graph();
     void output_result(string output);
     void cs_hin_scan(string query_file, string mode);
-    void construct_index(string query_file, string option, int start_k);
+    void construct_index(string query_file, string option, int start_k, int scale);
     void find_meta(int type);
+
+    int max_scale_num, max_scale_id;
+    int scale_;
+    string option_;
 };
 
 #endif
