@@ -32,14 +32,20 @@ int main(int argc, char const *argv[])
         if (argc < 4)
         {
             cerr << "Invalid number of arguments." << endl;
-            cerr << "Usage: " << argv[0] << " -q[0-9 | idx] <input> <query_file> [-o <output_path>]"
+            cerr << "Usage: " << argv[0] << " -q[0-9 | idx] <input> <query_file> [-o <output_path>] [scale]"
                  << endl;
             return 1;
         }
         string input_path = argv[2];
         string query_file = argv[3];
         string output_path = ""; // 默认为空
-        if (argc > 5)
+        int scale = 100;
+        if (option == "-qidxscal" || option == "-qscal")
+        {
+            scale = std::stoi(argv[4]);
+            cout << "scale test:" << scale << endl;
+        }
+        else if (argc > 5)
         {
             output_path = argv[5];
         }
@@ -49,7 +55,7 @@ int main(int argc, char const *argv[])
         HinGraph g1 = HinGraph(input_path);
 
         g1.load_graph();
-        g1.cs_hin_scan(query_file, option);
+        g1.cs_hin_scan(query_file, option, scale);
 
         if (!output_path.empty())
         {

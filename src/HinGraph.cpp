@@ -143,13 +143,23 @@ void HinGraph::load_graph()
     return;
 }
 
-void HinGraph::cs_hin_scan(string query_file, string mode)
+void HinGraph::cs_hin_scan(string query_file, string mode, int scale)
 {
+    option_ = mode;
     load_query_file(query_file);
     initialize_query_();
     reinitialize_query_();
 
-    if (mode == "-qidx" || mode == "-qidxsel" || mode == "-qidxSCAN")
+    if (mode == "-qidxscal" || mode == "-qscal")
+    {
+        scale_ = scale;
+        max_scale_num = num_query_type_ * scale / 100;
+        num_query_type_ = max_scale_num;
+        max_scale_id = max_scale_num + query_type_offset_;
+        // query_node_list = move(randomSampling(num_query_type_, query_node_num));
+    }
+
+    if (mode == "-qidx" || mode == "-qidxsel" || mode == "-qidxSCAN" || mode == "-qidxscal")
     {
         mode_query = 10;
         if (mode == "-qidxsel")
@@ -161,6 +171,10 @@ void HinGraph::cs_hin_scan(string query_file, string mode)
         if (mode == "-qidxSCAN")
         {
             mode_query = 12;
+        }
+        if (mode == "-qidxscal")
+        {
+            mode_query = 16;
         }
         index_query_();
         return;
@@ -186,6 +200,12 @@ void HinGraph::cs_hin_scan(string query_file, string mode)
         else if (mode == "-q3")
         {
             mode_query = 3;
+        }
+        else if (mode == "-qscal")
+        {
+            mode_query = 6;
+            baseline_query_();
+            return;
         }
         // improved_query_();
         // baseline_query_();
@@ -218,7 +238,7 @@ void HinGraph::construct_index(string query_file, string option, int start_k, in
     string type_index_path = data_index_dir_ + "/" + to_string(p_query_type);
     string all_sim_path = type_index_path + "/sim_graph.txt";
     std::ifstream sim_file(all_sim_path.c_str());
-    if (option == "-fidxscal" || sim_file.good() == false)
+    if (option == "-fidxscal" || option == "-fidx_DBP" || sim_file.good() == false)
     {
         cout << "start counput the Similarity graph" << endl;
         search_d_neighbor();
@@ -507,9 +527,12 @@ void HinGraph::load_query_file(string query_file_path)
 
     if (selected_ids)
     { // use selected ids
-        cout << "use Selected node for query" << endl;
-        // string selected_ids_path = data_dir_ + "/selected_ids.txt";
-        string selected_ids_path = data_index_dir_ + "/" + to_string(p_query_type) + "/selected_ids.txt";
+        string selected_ids_path;
+        if (option_ == "-qidxscal" || option_ == "-qscal")
+            selected_ids_path = data_index_dir_ + "/" + to_string(p_query_type) + "/selected_scale_ids.txt";
+        else
+            selected_ids_path = data_index_dir_ + "/" + to_string(p_query_type) + "/selected_ids.txt";
+        cout << "use Selected node for query " << selected_ids_path << endl;
         ifstream selected_ids_file = open_file_fstream(selected_ids_path);
         for (int i = 0; i < query_node_num; i++)
         {
@@ -797,6 +820,7 @@ void HinGraph::baseline_query_()
         Timer t1;
         t1.Start();
         if (mode_query == 2)
+        // if (mode_query == 2 || mode_query == 6)
         {
             online_query_scan();
         }
@@ -1093,7 +1117,7 @@ void HinGraph::index_query_()
         Timer t1;
         t1.Start();
 
-        if (mode_query == 12)
+        if (mode_query == 12 || mode_query == 16)
         {
             query_index_scan();
         }
@@ -1327,9 +1351,10 @@ void HinGraph::select_query_node()
     int tmp_all = 0;
     for (auto i : com_size)
         tmp_all += i;
-    double aver_size = tmp_all / community_all_num;
+    double aver_size = double(tmp_all) / community_all_num;
     cout << "average community number is " << aver_size << endl;
     cout << "start save community number" << endl;
+    return;
     // string community_num_path = data_index_dir_ + "/community_num.txt";
     string community_num_path = data_index_dir_ + "/" + to_string(p_query_type) + "/community_num" + to_string(p_mu) + ".txt";
     ofstream community_num_file = open_file_ofstream(community_num_path);
@@ -1466,7 +1491,13 @@ void HinGraph::search_cand_sn(int i)
                         continue;
 
                     v_vertex.insert(nei_id);
-                    cand_sn_list[i].push_back(nei_id);
+                    if (mode_query == 6)
+                    {
+                        if (nei_id < max_scale_id)
+                            cand_sn_list[i].push_back(nei_id);
+                    }
+                    else
+                        cand_sn_list[i].push_back(nei_id);
                 }
                 else
                 {
@@ -1932,7 +1963,7 @@ void HinGraph::save_all_similarity()
 void HinGraph::load_all_similarity()
 {
     string type_index_path;
-    if (option_ == "-fidxscal")
+    if (option_ == "-fidxscal" || option_ == "-qidxscal")
         type_index_path = data_index_dir_ + "/" + to_string(p_query_type) + "-" + to_string(scale_);
     else
         type_index_path = data_index_dir_ + "/" + to_string(p_query_type);
