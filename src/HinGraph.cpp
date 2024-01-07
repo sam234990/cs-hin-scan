@@ -159,9 +159,10 @@ void HinGraph::cs_hin_scan(string query_file, string mode, int scale)
         // query_node_list = move(randomSampling(num_query_type_, query_node_num));
     }
 
-    if (mode == "-qidx" || mode == "-qidxsel" || mode == "-qidxSCAN" || mode == "-qidxscal")
+    if (mode == "-qidx" || mode == "-qidxsel" || mode == "-qidxSCAN" || mode == "-qidxscal" || mode == "-qidxeff")
     {
-        mode_query = 10;
+
+        mode_query = 12;
         if (mode == "-qidxsel")
         {
             mode_query = 11;
@@ -176,6 +177,10 @@ void HinGraph::cs_hin_scan(string query_file, string mode, int scale)
         {
             mode_query = 16;
         }
+        if (mode == "-qidxscal")
+        {
+            mode_query = 15;
+        }
         index_query_();
         return;
     }
@@ -183,6 +188,7 @@ void HinGraph::cs_hin_scan(string query_file, string mode, int scale)
     {
         if (mode == "-q")
         {
+            mode_query = 2;
             baseline_query_();
             return;
         }
@@ -551,6 +557,16 @@ void HinGraph::load_query_file(string query_file_path)
     }
     else
     {
+        std::vector<int> keysToRemove;
+        for (auto it = type_epsilon.begin(); it != type_epsilon.end(); ++it)
+        {
+            if (it->second == 0.0)
+                keysToRemove.push_back(it->first);
+        }
+
+        for (int key : keysToRemove)
+            type_epsilon.erase(key);
+
         for (const auto &pair : type_epsilon)
         {
             cout << pair.first << " -> " << pair.second << " -- ";
@@ -646,6 +662,16 @@ void HinGraph::initialize_query_()
     {
         query_node_list = move(randomSampling(num_query_type_, query_node_num));
     }
+
+    if (random_query == false)
+    {
+        for (int i = 0; i < query_node_num && i < query_node_list.size(); i++)
+        {
+            if (query_node_list[i] > query_type_offset_)
+                query_node_list[i] -= query_type_offset_;
+        }
+    }
+
     // initial type neighbor
     dn_adj_List.resize(num_query_type_);
     qn_adj_List.resize(num_query_type_);
@@ -756,6 +782,7 @@ void HinGraph::print_result(bool print_all, long use_time)
         return;
     }
 
+    vector<int> res;
     if (is_in_community[query_i])
     {
         int num_community = 0;
@@ -767,6 +794,8 @@ void HinGraph::print_result(bool print_all, long use_time)
                 if (is_in_community[i])
                 {
                     num_community++;
+                    if (query_node_num == 1)
+                        res.push_back(i);
                     if (print_all)
                         cout << i;
                     if (cand_core_[i])
@@ -799,6 +828,32 @@ void HinGraph::print_result(bool print_all, long use_time)
                 cout << endl;
             cout << query_i << " community contains Num(V) : " << num_community;
             cout << ". Use time: " << use_time << endl;
+        }
+    }
+    if (query_node_num == 1)
+    {
+        vector<string> author_names(num_query_type_);
+        string k_thres_path = data_dir_ + "/author.txt";
+        ifstream inputFile(k_thres_path);
+        std::string line;
+        int idx = 0;
+        while (std::getline(inputFile, line))
+        {
+            line.erase(std::remove(line.begin(), line.end(), '\n'), line.end());
+            author_names[idx] = line;
+            idx++;
+        }
+        for (auto i : res)
+        {
+            // cout << i << " ";
+            cout << author_names[i] << ": ";
+            for (auto j : res)
+            {
+                bool sim_res = check_struc_sim(i, j);
+                if (sim_res)
+                    cout << j << " ";
+            }
+            cout << endl;
         }
     }
 }
@@ -865,7 +920,7 @@ void HinGraph::online_query_scan()
     scan_check_cluster_core(query_i);
     if (similar_degree[query_i] < p_mu)
     {
-        cout << query_i << " Cannot search a SCAN-like community" << endl;
+        // cout << query_i << " Cannot search a SCAN-like community" << endl;
         is_in_community[query_i] = false;
     }
     else
@@ -1047,6 +1102,7 @@ void HinGraph::query_index_scan()
         cs_node_q.pop();
         if (index_judge_core(vertex_i, p_mu))
         {
+            cand_core_[vertex_i] = true;
             for (const auto &i_nei : h_sim[vertex_i])
             {
                 if (is_in_community[i_nei.neighbor_i])
@@ -1069,6 +1125,7 @@ void HinGraph::query_index_scan()
             }
             if (nei_ids.size() >= p_mu)
             {
+                cand_core_[vertex_i] = true;
                 for (const auto nei_i : nei_ids)
                 {
                     if (is_in_community[nei_i] == true)
@@ -1080,6 +1137,123 @@ void HinGraph::query_index_scan()
         }
     }
     has_community++;
+}
+
+void HinGraph::effectiveness_result(int eff_res_i, vector<int> &vertex_num_all,
+                                    vector<int> &diameter_all, vector<double> &density_all,
+                                    vector<double> &pdensity_all,
+                                    vector<int> &meta_path_num, vector<int> &eff_id)
+{
+    if (is_in_community[query_i] == false)
+        return;
+    int num_com = 0, edge_num = 0, core_num = 0;
+    vector<int> res;
+    res.reserve(num_query_type_);
+    for (int i = 0; i < num_query_type_; i++)
+    {
+        if (is_in_community[i])
+        {
+            num_com++;
+            res.push_back(i);
+        }
+    }
+
+    vector<int> core_ids;
+    core_ids.reserve(num_com);
+    vertex_num_all[eff_res_i] = num_com;
+    long p_edge_num = 0;
+    for (const auto &com_i : res)
+    {
+        if (is_in_community[com_i] == false)
+            continue;
+        if (cand_core_[com_i])
+        {
+            core_ids.push_back(com_i);
+            core_num++;
+        }
+        // qn_adj_List[com_i].reserve(h_sim[com_i].size());
+        for (const auto &i_nei : h_sim[com_i])
+        {
+            if (is_in_community[i_nei.neighbor_i] == false)
+                continue; // this neighbor not in community
+            if (judge_demoinate(i_nei.sim_vec, index_order_epsilon) == false)
+                continue; // this edge should be ignore
+            edge_num++;
+            // qn_adj_List[com_i].push_back(i_nei.neighbor_i);
+        }
+
+        unordered_set<int> p_nei;
+        for (auto pair : type_epsilon)
+        {
+            int type = pair.first;
+            vector<int> &dn_i_type_i = dn_adj_List[com_i].d_neighbor_[type];
+            if (dn_i_type_i.size() == 0)
+                continue;
+            for (const auto &d_n_i : dn_i_type_i)
+            {
+                const vector<int> &induced_qn = t_hop_visited[d_n_i];
+                for (const auto &qn_i : induced_qn)
+                {
+                    if (is_in_community[qn_i - query_type_offset_])
+                        p_nei.insert(qn_i - query_type_offset_);
+                }
+            }
+        }
+        p_edge_num += p_nei.size();
+        qn_adj_List[com_i].reserve(p_nei.size());
+        qn_adj_List[com_i].assign(p_nei.begin(), p_nei.end());
+    }
+    double density = double(edge_num) / num_com;
+    double pdensity = double(p_edge_num) / num_com;
+    density_all[eff_res_i] = density;
+    pdensity_all[eff_res_i] = pdensity;
+    int diameter = 0, round = 0, roundThreshold = 20;
+    vector<int> dia_res = res;
+    random_shuffle(dia_res.begin(), dia_res.end());
+    for (const auto &com_i : dia_res)
+    {
+        int cur_max_hop = 0;
+        unordered_set<int> v_vertex;
+        queue<pair<int, int>> bfs_path;
+        bfs_path.push(make_pair(com_i, 0));
+        v_vertex.insert(com_i);
+
+        while (!bfs_path.empty())
+        {
+            int curVertex_id = bfs_path.front().first, cur_step = bfs_path.front().second;
+            bfs_path.pop();
+            if (cur_step > cur_max_hop)
+                cur_max_hop = cur_step;
+            for (const auto &nei_id : qn_adj_List[curVertex_id])
+            {
+                if (v_vertex.find(nei_id) != v_vertex.end())
+                { // this neighbor visited before
+                    continue;
+                }
+                v_vertex.insert(nei_id);
+                bfs_path.push(make_pair(nei_id, cur_step + 1));
+            }
+        }
+        if (cur_max_hop > diameter)
+            diameter = cur_max_hop;
+
+        round++;
+        if (round >= roundThreshold)
+            break;
+    }
+    diameter_all[eff_res_i] = diameter;
+
+    for (const auto &com_i : res)
+    {
+        qn_adj_List[com_i].clear();
+    }
+    random_shuffle(core_ids.begin(), core_ids.end());
+    int id = query_i;
+    auto it = std::find_if(core_ids.begin(), core_ids.end(), [id](int val)
+                           { return val != id; });
+    int core_2 = *it;
+    eff_id.push_back(query_i);
+    eff_id.push_back(core_2);
 }
 
 void HinGraph::index_query_()
@@ -1101,23 +1275,44 @@ void HinGraph::index_query_()
             continue;
         }
         index_order_epsilon[i] = type_epsilon[type_i];
+        int type_start = vertex_start_map_[type_i];
+        int type_end = (type_i + 1) == n_types ? n : vertex_start_map_[type_i + 1];
+        for (int j = type_start; j < type_end; j++)
+        {
+            int nei_edge_start = vertex_offset_[j];
+            int nei_end = ((j + 1) == n) ? m : vertex_offset_[j + 1];
+            t_hop_visited[j] = vector<int>();
+            t_hop_visited[j].reserve((nei_end - nei_edge_start + 3));
+        }
     }
+    load_d_n();
 
     cout << "start index query " << endl;
     long all_time = 0;
     has_community = 0;
+    vector<int> vertex_num_all(1000, 0);
+    vector<int> diameter_all(1000, 0);
+    vector<double> density_all(1000, 0);
+    vector<double> pdensity_all(1000, 0);
+    vector<int> meta_path_num(1000, 0);
+    vector<int> eff_id;
+    eff_id.reserve(1000);
+
     vector<long> time_cost(query_node_num, 0);
     for (int i = 0; i < query_node_num && i < query_node_list.size(); i++)
     {
         query_i = query_node_list[i];
         for (int i = 0; i < num_query_type_; i++)
+        {
+            cand_core_[i] = false;
             is_in_community[i] = false;
+        }
 
         queue<int> cs_node_q;
         Timer t1;
         t1.Start();
 
-        if (mode_query == 12 || mode_query == 16)
+        if (mode_query == 12 || mode_query == 16 || mode_query == 15)
         {
             query_index_scan();
         }
@@ -1153,6 +1348,8 @@ void HinGraph::index_query_()
         }
 
         long cost_time = t1.StopTime();
+        if (option_ == "-qidxeff")
+            effectiveness_result(i, vertex_num_all, diameter_all, density_all, pdensity_all, meta_path_num, eff_id);
         all_time += cost_time;
         time_cost[i] = cost_time;
         print_result(false, cost_time);
@@ -1160,6 +1357,35 @@ void HinGraph::index_query_()
     string str1 = "finish query " + to_string(query_node_num) + " times, use time:";
     Timer::PrintTime(str1, all_time);
     cout << has_community << endl;
+
+    long vertex_num_ = 0, d_ = 0;
+    double den_ = 0.0;
+    double pden_ = 0.0;
+    int com_num = 0;
+    for (int i = 0; i < query_node_num && i < query_node_list.size(); i++)
+    {
+        if (vertex_num_all[i] == 0)
+            continue;
+        com_num++;
+        vertex_num_ += vertex_num_all[i];
+        d_ += diameter_all[i];
+        den_ += density_all[i];
+        pden_ += pdensity_all[i];
+    }
+    double average_num = double(vertex_num_) / com_num;
+    double average_dia = double(d_) / com_num;
+    double average_den = den_ / com_num;
+    double average_pden = pden_ / com_num;
+    cout << "average vertex num is " << average_num << endl;
+    cout << "average diameter is " << average_dia << endl;
+    cout << "average density is " << average_den << endl;
+    cout << "average pdensity is " << average_pden << endl;
+    for (size_t i = 0; i < eff_id.size(); i++)
+    {
+        cout << eff_id[i] + query_type_offset_ << " ";
+        if (i % 2 == 1)
+            cout << endl;
+    }
 }
 
 void HinGraph::select_query_node()
@@ -1184,12 +1410,14 @@ void HinGraph::select_query_node()
     }
 
     vector<int> community_number(num_query_type_, 0);
+    cand_core_.resize(num_query_type_);
     pa.resize(num_query_type_);
     p_rank_.resize(num_query_type_);
     int bs_max_ed = -1, bs_max_ed_i;
     unordered_map<int, queue<int>> bin_sort_queue_;
     for (int i = 0; i < num_query_type_; i++)
     {
+        cand_core_[i] = false;
         pa[i] = i;
         p_rank_[i] = 0;
         similar_degree[i] = 0;
@@ -1204,6 +1432,10 @@ void HinGraph::select_query_node()
     int community_all_num = 0;
     vector<int> com_size;
     com_size.reserve(num_query_type_);
+    vector<float> sim_all;
+    sim_all.reserve(num_query_type_);
+    vector<int> edge_all;
+    edge_all.reserve(num_query_type_);
 
     Timer t1;
     t1.Start();
@@ -1230,7 +1462,6 @@ void HinGraph::select_query_node()
             break;
 
         visited_qtv_[query_i] = true;
-
         queue<int> cs_node_q;
         if (index_judge_core(query_i, p_mu) == false)
         {
@@ -1248,6 +1479,7 @@ void HinGraph::select_query_node()
         res.reserve(num_query_type_);
         cs_node_q.push(query_i);
         is_in_community[query_i] = true;
+        cand_core_[query_i] = true;
 
         while (!cs_node_q.empty())
         {
@@ -1258,6 +1490,7 @@ void HinGraph::select_query_node()
 
             if (index_judge_core(vertex_i, p_mu))
             {
+                cand_core_[vertex_i] = true;
                 for (const auto &i_nei : h_sim[vertex_i])
                 {
                     // if (find_root(vertex_i) == find_root(i_nei.neighbor_i))
@@ -1282,6 +1515,7 @@ void HinGraph::select_query_node()
                 }
                 if (nei_ids.size() >= p_mu)
                 {
+                    cand_core_[vertex_i] = true;
                     for (const auto nei_i : nei_ids)
                     {
                         // if (find_root(vertex_i) == find_root(nei_i))
@@ -1295,6 +1529,31 @@ void HinGraph::select_query_node()
             }
         }
         int com_num = res.size();
+
+        float community_sim = 0;
+        int edge_num = 0;
+        for (const auto &com_i : res)
+        {
+            if (cand_core_[com_i] == false)
+                continue;
+            for (const auto &i_nei : h_sim[com_i])
+            {
+                if (is_in_community[i_nei.neighbor_i] == false)
+                    continue; // this neighbor not in community
+                if (judge_demoinate(i_nei.sim_vec, index_order_epsilon) == false)
+                    continue; // this edge should be ignore
+                edge_num++;
+                float tmp_sim = 0;
+                for (const auto &sim : i_nei.sim_vec)
+                    tmp_sim += sim;
+                tmp_sim = tmp_sim / i_nei.sim_vec.size();
+                community_sim += tmp_sim;
+            }
+        }
+        community_sim = community_sim / edge_num;
+        edge_all.push_back(edge_num);
+        sim_all.push_back(community_sim);
+
         for (auto com_i : res)
         {
             community_number[com_i] = com_num;
@@ -1349,12 +1608,22 @@ void HinGraph::select_query_node()
 
     cout << "community_all_number is " << community_all_num << endl;
     int tmp_all = 0;
+    long tmp_edge = 0;
+    double tmp_sim = 0;
     for (auto i : com_size)
         tmp_all += i;
+    for (auto i : edge_all)
+        tmp_edge += i;
+    for (auto i : sim_all)
+        tmp_sim += i;
     double aver_size = double(tmp_all) / community_all_num;
-    cout << "average community number is " << aver_size << endl;
+    double aver_edge = double(tmp_edge) / community_all_num;
+    double aver_sim = tmp_sim / community_all_num;
+    cout << "avn: vertex number per community is " << aver_size << endl;
+    cout << "ave: edge number per community is " << aver_edge << endl;
+    cout << "avs: average similarity is " << aver_sim << endl;
     cout << "start save community number" << endl;
-    return;
+
     // string community_num_path = data_index_dir_ + "/community_num.txt";
     string community_num_path = data_index_dir_ + "/" + to_string(p_query_type) + "/community_num" + to_string(p_mu) + ".txt";
     ofstream community_num_file = open_file_ofstream(community_num_path);
@@ -1413,11 +1682,11 @@ void HinGraph::search_k_strata(int i)
             { // this neighbor visited before
                 continue;
             }
-            int nei_dis = distance_[nei_type];
-            if (nei_dis == -1)
-            { // this type neighbor is unconsidered. continue
-                continue;
-            }
+            // int nei_dis = distance_[nei_type];
+            // if (nei_dis == -1)
+            // { // this type neighbor is unconsidered. continue
+            //     continue;
+            // }
 
             v_vertex.insert(nei_id);
             bfs_path.push(make_pair(nei_id, cur_step + 1));
@@ -1851,6 +2120,22 @@ void HinGraph::load_d_n()
 
 void HinGraph::multi_func(int i)
 {
+    bool skip = true;
+    for (const auto type_j : index_type_order)
+    {
+        vector<int> &dn_i_type_i = dn_adj_List[i].d_neighbor_[type_j];
+        if (dn_i_type_i.size() > 0)
+        {
+            skip = false;
+            break;
+        }
+    }
+    if (skip == true)
+    {
+        if (i % (num_query_type_ / 100) == 0)
+            cout << i << endl;
+        return;
+    }
     vector<Nei_similarity> qn_sim;
     for (int j = 0; j < index_type_order.size(); j++)
     {
@@ -1902,6 +2187,19 @@ void HinGraph::compute_all_similarity()
 
     for (int i = 0; i < num_query_type_; i++)
     {
+        bool skip = true;
+        for (const auto type_j : index_type_order)
+        {
+            vector<int> &dn_i_type_i = dn_adj_List[i].d_neighbor_[type_j];
+            if (dn_i_type_i.size() > 0)
+            {
+                skip = false;
+                break;
+            }
+        }
+        if (skip == true)
+            continue;
+
         vector<Nei_similarity> qn_sim;
         for (int j = 0; j < index_type_order.size(); j++)
         {
@@ -3182,9 +3480,9 @@ int HinGraph::compute_one_type_qn_similarity(int i, int type_i, vector<Query_nei
     vector<int> &dn_i_type_i = dn_adj_List[i].d_neighbor_[type_i];
     if (dn_i_type_i.size() == 0)
     {
-        return 0;
-        if (n_types > 100)
-            return 0;
+        // return 0;
+        // if (n_types > 100)
+        //     return 0;
         type_i_qn_similarity.reserve(empty_dn_set[type_i].size());
         for (const auto &qn_i : empty_dn_set[type_i])
         {
@@ -3344,6 +3642,8 @@ bool HinGraph::check_struc_sim(int a, int b)
         double type_ep = pair.second;
         if (type_ep == 0.0)
             continue;
+        // if(dn_adj_List[a].d_neighbor_[type].size() == 0 || dn_adj_List[b].d_neighbor_[type].size() == 0)
+        //     return false;
 
         if (judgeJacSim(dn_adj_List[a].d_neighbor_[type], dn_adj_List[b].d_neighbor_[type], type_ep) == false)
             return false;

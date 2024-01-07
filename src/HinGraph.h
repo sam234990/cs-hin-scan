@@ -18,7 +18,7 @@
 #include <queue>
 #include <cmath>
 #include <thread>
-#include <functional>  // 添加这个头文件
+#include <functional> // 添加这个头文件
 
 struct Vertex_neighbor
 {
@@ -100,7 +100,7 @@ private:
     map<int, int> distance_;
     vector<bool> cand_core_;
     vector<vector<int>> qn_adj_List; // qn
-    vector<int> pa;               // pa and rank are used for the disjoint-set data structure
+    vector<int> pa;                  // pa and rank are used for the disjoint-set data structure
     vector<int> p_rank_;
 
     // index variables
@@ -211,6 +211,10 @@ private:
     void count_core_vertices();
 
     void dfs(int cur_i, int step, int types, vector<long> &res);
+    void effectiveness_result(int i, vector<int> &vertex_num_all,
+                              vector<int> &diameter_all, vector<double> &density_all,
+                              vector<double> &pdensity_all,
+                              vector<int> &meta_path_num, vector<int> &eff_id);
 
 public:
     // index variables
