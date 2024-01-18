@@ -5,6 +5,7 @@
 #include "timer.h"
 #include "multiLevelQueue.h"
 #include "MuTree.h"
+#include "PathSim.h"
 #include <vector>
 #include <string>
 #include <bitset>
@@ -18,7 +19,7 @@
 #include <queue>
 #include <cmath>
 #include <thread>
-#include <functional> // 添加这个头文件
+#include <functional>
 
 struct Vertex_neighbor
 {
@@ -74,34 +75,10 @@ class HinGraph
 private:
     string data_file_name;
     string data_dir_;
+    string input_dir_;
     string data_index_dir_;
     string query_file_name;
     int mode_query;
-
-    // hin graph
-    int m, n, n_types;
-    vector<vector<int>> hin_schema_adjacencyMatrix;
-    vector<vector<int>> hin_schema_edge_cnt;
-    vector<int> vertex_start_map_;
-    int *vertex_offset_;
-    Vertex_type *edges_;
-
-    // query parameters
-    int p_mu, p_d, p_query_type, query_i;
-    int query_node_num;
-    vector<int> query_node_list;
-    map<int, double> type_epsilon;
-    bool unit_epsilon, random_query;
-    double unit_epsilon_value;
-
-    // scan variables
-    int query_type_offset_; // vertex_id = i + query_type_offset_, i is the subscript in adjacencyList
-    int num_query_type_;
-    map<int, int> distance_;
-    vector<bool> cand_core_;
-    vector<vector<int>> qn_adj_List; // qn
-    vector<int> pa;                  // pa and rank are used for the disjoint-set data structure
-    vector<int> p_rank_;
 
     // index variables
     int k_max;
@@ -217,6 +194,31 @@ private:
                               vector<int> &meta_path_num, vector<int> &eff_id);
 
 public:
+    // hin graph
+    int m, n, n_types;
+    vector<vector<int>> hin_schema_adjacencyMatrix;
+    vector<vector<int>> hin_schema_edge_cnt;
+    vector<int> vertex_start_map_;
+    int *vertex_offset_;
+    Vertex_type *edges_;
+
+    // query parameters
+    int p_mu, p_d, p_query_type, query_i;
+    int query_node_num;
+    vector<int> query_node_list;
+    map<int, double> type_epsilon;
+    bool unit_epsilon, random_query;
+    double unit_epsilon_value;
+
+    // scan variables
+    int query_type_offset_; // vertex_id = i + query_type_offset_, i is the subscript in adjacencyList
+    int num_query_type_;
+    map<int, int> distance_;
+    vector<bool> cand_core_;
+    vector<vector<int>> qn_adj_List; // qn
+    vector<int> pa;                  // pa and rank are used for the disjoint-set data structure
+    vector<int> p_rank_;
+
     // index variables
     vector<MuTree> index_tree;
 

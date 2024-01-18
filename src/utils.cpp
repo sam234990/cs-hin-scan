@@ -117,6 +117,7 @@ void utils::precoss_graph(string input, string output)
 	dest_dir_ = output + "/pro_graph";
 	check_dir_path(dest_dir_);
 	process_vertex();
+	load_edge_type(input);
 
 	// read_and_print_vertex();
 	read_and_print_graph();
@@ -126,6 +127,25 @@ void utils::precoss_graph(string input, string output)
 	// delete[] edges_;
 	// delete[] vertex_offset_;
 	return;
+}
+
+void utils::load_edge_type(string input)
+{
+	string edge_file_path = input + "/edge.txt";
+	int line_cnt = getLineCount(edge_file_path);
+	edge_type_.resize(line_cnt);
+	ifstream edge_file = open_file_fstream(edge_file_path);
+	int id, type;
+	for (int i = 0; i < line_cnt; i++)
+	{
+		edge_file >> id >> type;
+		if (id != i)
+		{
+			cerr << "error: wrong edge file format" << endl;
+			exit(-1);
+		}
+		edge_type_[i] = type;
+	}
 }
 
 void utils::read_and_print_vertex()
@@ -192,21 +212,20 @@ void utils::read_and_print_graph()
 		iss >> source_id;
 		vertex_id = s_r_vertex_map_[source_id];
 
-		int neighbor_source_id;
+		int neighbor_source_id, edge_id;
 		while (iss >> neighbor_source_id)
 		{
 			neighbor_vertex_id = s_r_vertex_map_[neighbor_source_id];
 			Vertex_type neighbor;
 			neighbor.v_id = neighbor_vertex_id;
 			neighbor.v_type = get_vertex_type(neighbor_vertex_id);
-			edges_[vertex_id].push_back(neighbor);
-
-			// 忽略 edge_id
-			int edge_id;
+			// int edge_id;
 			if (!(iss >> edge_id))
 			{
 				break;
 			}
+			neighbor.edge_type = edge_type_[edge_id];
+			edges_[vertex_id].push_back(neighbor);
 		}
 		vertex_edge_num++;
 		if (vertex_edge_num % 500000 == 0)
@@ -226,12 +245,12 @@ void utils::read_and_print_graph()
 	for (int i = 0; i < n; i++)
 	{
 		sort(edges_[i].begin(), edges_[i].end(), compareVertex);
-		auto it = std::unique(edges_[i].begin(), edges_[i].end(),
-							  [](const Vertex_type &v1, const Vertex_type &v2)
-							  {
-								  return v1.v_id == v2.v_id;
-							  });
-		edges_[i].erase(it, edges_[i].end());
+		// auto it = std::unique(edges_[i].begin(), edges_[i].end(),
+		// 					  [](const Vertex_type &v1, const Vertex_type &v2)
+		// 					  {
+		// 						  return v1.v_id == v2.v_id;
+		// 					  });
+		// edges_[i].erase(it, edges_[i].end());
 		edge_cnt += edges_[i].size();
 	}
 	m = edge_cnt;
@@ -366,7 +385,7 @@ void utils::save_graph()
 		const vector<Vertex_type> neighborhood_set = edges_[i];
 		for (auto nei : neighborhood_set)
 		{
-			graph_type << nei.v_id << " " << nei.v_type << endl;
+			graph_type << nei.v_id << " " << nei.v_type << " " << nei.edge_type << endl;
 			cur_edge++;
 		}
 	}

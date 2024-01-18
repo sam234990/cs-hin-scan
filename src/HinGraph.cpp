@@ -63,7 +63,7 @@ HinGraph::HinGraph(string data_dir)
     {
         data_file_name = data_dir;
     }
-
+    input_dir_ = data_dir;
     data_dir_ = data_dir + "/pro_graph";
     data_index_dir_ = data_dir + "/index-cs";
 }
@@ -126,7 +126,7 @@ void HinGraph::load_graph()
     {
         getline(graph_type, line);
         istringstream iss_graph_type(line);
-        iss_graph_type >> edges_[i].v_id >> edges_[i].v_type;
+        iss_graph_type >> edges_[i].v_id >> edges_[i].v_type >> edges_[i].edge_type;
     }
     graph_type.close();
 
@@ -282,61 +282,61 @@ void HinGraph::construct_index(string query_file, string option, int start_k, in
     return;
 }
 
-void HinGraph::dfs(int cur_i, int step, int types, vector<long> &res)
-{
-    if (step == 4)
-    {
-        res[types] += 1;
-        return;
-    }
-    int nei_edge_start = vertex_offset_[cur_i];
-    int nei_end = ((cur_i + 1) == n) ? m : vertex_offset_[cur_i + 1];
-    if (step == 0)
-    {
-        for (int j = nei_edge_start; j < nei_end; j++)
-        {
-            int nei_type = edges_[j].v_type, nei_id = edges_[j].v_id;
-            if (nei_type == p_query_type)
-                continue;
-            dfs(nei_id, 1, (nei_type + 1) * 1000, res);
-        }
-        return;
-    }
-    if (step == 1)
-    {
-        for (int j = nei_edge_start; j < nei_end; j++)
-        {
-            int nei_type = edges_[j].v_type, nei_id = edges_[j].v_id;
-            if (nei_type == p_query_type)
-                continue;
-            dfs(nei_id, 2, types + nei_type + 1, res);
-        }
-        return;
-    }
-    if (step == 2)
-    {
-        int follow_type = types / 1000 - 1;
-        for (int j = nei_edge_start; j < nei_end; j++)
-        {
-            int nei_type = edges_[j].v_type, nei_id = edges_[j].v_id;
-            if (nei_type != follow_type)
-                continue;
-            dfs(nei_id, 3, types, res);
-        }
-        return;
-    }
-    if (step == 3)
-    {
-        for (int j = nei_edge_start; j < nei_end; j++)
-        {
-            int nei_type = edges_[j].v_type, nei_id = edges_[j].v_id;
-            if (nei_type != p_query_type)
-                continue;
-            dfs(nei_id, 4, types, res);
-        }
-    }
-    return;
-}
+// void HinGraph::dfs(int cur_i, int step, int types, vector<long> &res)
+// {
+//     if (step == 4)
+//     {
+//         res[types] += 1;
+//         return;
+//     }
+//     int nei_edge_start = vertex_offset_[cur_i];
+//     int nei_end = ((cur_i + 1) == n) ? m : vertex_offset_[cur_i + 1];
+//     if (step == 0)
+//     {
+//         for (int j = nei_edge_start; j < nei_end; j++)
+//         {
+//             int nei_type = edges_[j].v_type, nei_id = edges_[j].v_id;
+//             if (nei_type == p_query_type)
+//                 continue;
+//             dfs(nei_id, 1, (nei_type + 1) * 1000, res);
+//         }
+//         return;
+//     }
+//     if (step == 1)
+//     {
+//         for (int j = nei_edge_start; j < nei_end; j++)
+//         {
+//             int nei_type = edges_[j].v_type, nei_id = edges_[j].v_id;
+//             if (nei_type == p_query_type)
+//                 continue;
+//             dfs(nei_id, 2, types + nei_type + 1, res);
+//         }
+//         return;
+//     }
+//     if (step == 2)
+//     {
+//         int follow_type = types / 1000 - 1;
+//         for (int j = nei_edge_start; j < nei_end; j++)
+//         {
+//             int nei_type = edges_[j].v_type, nei_id = edges_[j].v_id;
+//             if (nei_type != follow_type)
+//                 continue;
+//             dfs(nei_id, 3, types, res);
+//         }
+//         return;
+//     }
+//     if (step == 3)
+//     {
+//         for (int j = nei_edge_start; j < nei_end; j++)
+//         {
+//             int nei_type = edges_[j].v_type, nei_id = edges_[j].v_id;
+//             if (nei_type != p_query_type)
+//                 continue;
+//             dfs(nei_id, 4, types, res);
+//         }
+//     }
+//     return;
+// }
 
 void HinGraph::find_meta(int type)
 {

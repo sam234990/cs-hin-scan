@@ -44,6 +44,7 @@ struct Vertex_type
 {
 	int v_id;
 	int v_type;
+	int edge_type;
 };
 
 class utils
@@ -69,9 +70,11 @@ class utils
 	void process_vertex();
 
 public:
+	vector<int> edge_type_;
 	utils();
 	~utils();
 	void precoss_graph(string input, string output);
+	void load_edge_type(string input);
 
 	void read_and_print_vertex();
 	void read_and_print_graph();
