@@ -115,6 +115,7 @@ private:
     void initialize_query_();
     void reinitialize_query_();
     void baseline_query_();
+    void baseline_pathsim_query_();
     void online_query_scan();
     void scan_check_cluster_core(int u);
 
@@ -208,6 +209,9 @@ public:
     vector<int> query_node_list;
     map<int, double> type_epsilon;
     bool unit_epsilon, random_query;
+    bool query_pathsim;
+    vector<string> metapath_vecs;
+    vector<float> pathsim_epsilon;
     double unit_epsilon_value;
 
     // scan variables
@@ -221,6 +225,7 @@ public:
 
     // index variables
     vector<MuTree> index_tree;
+    PathSim path_utils;
 
     HinGraph(string data_dir);
     ~HinGraph();

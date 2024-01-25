@@ -19,8 +19,9 @@ std::string trim(const std::string &str)
 
 void PathSim::initial_metapaths(vector<string> mps)
 {
-    MetaPathVec.resize(mps.size());
-    for (int i = 0; i < mps.size(); i++)
+    path_num = mps.size();
+    MetaPathVec.resize(path_num);
+    for (int i = 0; i < path_num; i++)
     {
         string trimmedStr = trim(mps[i]);
         std::istringstream iss(trimmedStr);
@@ -48,12 +49,18 @@ void PathSim::initial_metapaths(vector<string> mps)
 void PathSim::initial_query_vertex(int q_num)
 {
     query_num_ = q_num;
-    query_path_cnt.resize(q_num, vector<pathcnt>(MetaPathVec.size()));
+    query_path_cnt.resize(q_num);
+    path_search_finish_.resize(q_num);
+    for (int i = 0; i < q_num; i++)
+    {
+        path_search_finish_[i] = false;
+        query_path_cnt[i] = vector<pathcnt>(path_num);
+    }
 }
 
-void PathSim::search(const HinGraph &graph, int query_vertex_id)
+void PathSim::search(const HinGraph &graph, int query_i)
 {
-    int query_i = query_vertex_id - graph.query_type_offset_;
+    int query_vertex_id = query_i + graph.num_query_type_;
     for (size_t i = 0; i < MetaPathVec.size(); i++)
     {
         MetaPath &cur_p = MetaPathVec[i];
@@ -80,8 +87,8 @@ void PathSim::search(const HinGraph &graph, int query_vertex_id)
                 bfs_path.push(make_pair(nei_id, cur_step + 1));
             }
         }
-        query_path_cnt[query_i][i].finish_cnt = true;
     }
+    path_search_finish_[query_i] = true;
 }
 
 void PathSim::compute_pathsim(int i, int j, vector<float> &sim_res)
@@ -94,4 +101,45 @@ void PathSim::compute_pathsim(int i, int j, vector<float> &sim_res)
         int ins_ij = query_path_cnt[i][meta_i].ins_path_cnt[j];
         sim_res[meta_i] = float(ins_ij) / (self_i * self_j);
     }
+}
+
+bool PathSim::judge_pathsim(int i, int j, const vector<float> sim_threshold)
+{
+    if (i == j)
+        return true;
+    for (size_t meta_i = 0; meta_i < MetaPathVec.size(); meta_i++)
+    {
+        int self_i = query_path_cnt[i][meta_i].ins_path_cnt[i];
+        int self_j = query_path_cnt[j][meta_i].ins_path_cnt[j];
+        int ins_ij = query_path_cnt[i][meta_i].ins_path_cnt[j];
+        float sim = float(ins_ij) / (self_i * self_j);
+        if(sim < sim_threshold[meta_i])
+            return false;
+    }
+    return true;
+}
+
+void PathSim::generate_cand_nei(const HinGraph &graph, int query_i, vector<int> &cand_nei)
+{
+    int num_cand = query_path_cnt[query_i][0].ins_path_cnt.size();
+    int gen_cand_type = 0;
+    for (int i = 0; i < path_num; i++)
+    {
+        if (num_cand > query_path_cnt[query_i][i].ins_path_cnt.size())
+        {
+            num_cand = query_path_cnt[query_i][i].ins_path_cnt.size();
+            gen_cand_type = i;
+        }
+    }
+    cand_nei.resize(num_cand);
+    const auto &query_i_cnt = query_path_cnt[query_i][gen_cand_type].ins_path_cnt;
+    int i = 0;
+    for (auto it = query_i_cnt.begin(); it != query_i_cnt.end(); ++it, i++)
+    {
+        int nei_i = it->first;
+        cand_nei[i] = nei_i + graph.query_type_offset_;
+        if (path_search_finish_[i] == false)
+            search(graph, i);
+    }
+    sort(cand_nei.begin(), cand_nei.end());
 }

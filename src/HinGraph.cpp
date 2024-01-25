@@ -193,9 +193,11 @@ void HinGraph::cs_hin_scan(string query_file, string mode, int scale)
             return;
         }
 
-        if (mode == "-q1")
+        if (mode == "-qpath_sim")
         {
             mode_query = 1;
+            baseline_pathsim_query_();
+            return;
         }
         else if (mode == "-qSCAN")
         {
@@ -433,6 +435,7 @@ void HinGraph::load_query_file(string query_file_path)
     ifstream query_file = open_file_fstream(query_file_path);
     int lineCount = 0;
     random_query = false;
+    query_pathsim = false;
     while (getline(query_file, line))
     {
         istringstream iss(line);
@@ -508,6 +511,11 @@ void HinGraph::load_query_file(string query_file_path)
                     cout << "Use the unit epsilon vector" << endl;
                     break;
                 }
+                else if (key == -2 && value == 0)
+                {
+                    query_pathsim = true;
+                    break;
+                }
                 else
                     type_epsilon[key] = value;
             }
@@ -529,6 +537,38 @@ void HinGraph::load_query_file(string query_file_path)
         }
         lineCount++;
     }
+    if (query_pathsim == true)
+    {
+        int path_num;
+        string path_num_line;
+        getline(query_file, path_num_line);
+        path_num = stoi(path_num_line);
+        for (int i = 0; i < path_num; ++i)
+        {
+            string metapath;
+            float epsilon;
+            if (getline(query_file, metapath))
+            {
+                string line;
+                getline(query_file, line);
+                epsilon = stof(line);
+                if (epsilon == 0.0)
+                {
+                    std::cerr << "Failed to read epsilon from file." << std::endl;
+                    exit(1);
+                }
+            }
+            else
+            {
+                std::cerr << "Failed to read a group from file." << std::endl;
+                exit(1);
+            }
+
+            metapath_vecs.push_back(metapath);
+            pathsim_epsilon.push_back(epsilon);
+        }
+    }
+
     query_file.close();
 
     if (selected_ids)
@@ -786,7 +826,7 @@ void HinGraph::print_result(bool print_all, long use_time)
     if (is_in_community[query_i])
     {
         int num_community = 0;
-        if (mode_query == 2)
+        if (mode_query == 2 || mode_query == 1)
         {
             int core_num = 0;
             for (int i = 0; i < num_query_type_; i++)
@@ -913,6 +953,55 @@ void HinGraph::baseline_query_()
     Timer::PrintTime(str1, all_time);
 }
 
+void HinGraph::baseline_pathsim_query_()
+{
+    cout << "start baseline online query (use PathSim)" << endl;
+    path_utils.initial_metapaths(metapath_vecs);
+    path_utils.initial_query_vertex(num_query_type_);
+    long all_time = 0;
+    vector<long> time_cost(query_node_num, 0);
+    for (int i = 0; i < query_node_num && i < query_node_list.size(); i++)
+    {
+        query_i = query_node_list[i];
+        reinitialize_query_();
+        path_utils.initial_query_vertex(num_query_type_);
+        is_in_community[query_i] = true;
+        Timer t1;
+        t1.Start();
+
+        path_utils.search(*this, query_i);
+        path_utils.generate_cand_nei(*this, query_i, cand_sn_list[query_i]);
+        scan_check_cluster_core(query_i);
+        if (similar_degree[query_i] < p_mu)
+        {
+            is_in_community[query_i] = false;
+        }
+        else
+        {
+            while (!mlq.empty())
+            {
+                int vertex_i = mlq.get_next();
+                if (vertex_i == -1)
+                    break;
+                while (visited_qtv_[vertex_i]) // this vertex has been visited
+                {
+                    vertex_i = mlq.get_next();
+                    if (vertex_i == -1)
+                        break;
+                }
+                if (vertex_i == -1)
+                    break;
+                path_utils.generate_cand_nei(*this, vertex_i, cand_sn_list[vertex_i]);
+                scan_check_cluster_core(vertex_i);
+            }
+        }
+        long cost_time = t1.StopTime();
+        all_time += cost_time;
+        time_cost[i] = cost_time;
+        print_result(false, cost_time);
+    }
+}
+
 void HinGraph::online_query_scan()
 {
     search_k_strata(query_i);
@@ -970,8 +1059,12 @@ void HinGraph::scan_check_cluster_core(int u)
             //     tmp_in_com.push_back(v_id);
             //     continue;
             // }
+            bool sim_res;
+            if (mode_query == 1)
+                sim_res = path_utils.judge_pathsim(u, v, pathsim_epsilon);
+            else
+                sim_res = check_struc_sim(u, v);
 
-            bool sim_res = check_struc_sim(u, v);
             if (sim_res)
             {
                 similar_degree[u]++;
@@ -993,31 +1086,6 @@ void HinGraph::scan_check_cluster_core(int u)
             if (effective_degree[u] < p_mu || similar_degree[u] >= p_mu)
                 break;
         }
-        // for (auto in_v_id : tmp_in_com)
-        // {
-        //     int v = in_v_id - query_type_offset_;
-        //     bool sim_res = check_struc_sim(u, v);
-        //     if (sim_res)
-        //     {
-        //         similar_degree[u]++;
-        //         qn_adj_List[u].push_back(in_v_id);
-        //     }
-        //     else
-        //         effective_degree[u]--;
-
-        //     if (visited_qtv_[v] == false && v != u)
-        //     {
-        //         if (sim_res)
-        //         {
-        //             similar_degree[v]++;
-        //             qn_adj_List[v].push_back(vertex_u_id);
-        //         }
-        //         else
-        //             non_sn_list[v].push_back(vertex_u_id);
-        //     }
-        //     if (effective_degree[u] < p_mu || similar_degree[u] >= p_mu)
-        //         break;
-        // }
     }
     visited_qtv_[u] = true;
 
@@ -1048,7 +1116,12 @@ void HinGraph::scan_check_cluster_core(int u)
         // if (ks_visit[v] == false) // this vertex has not searched k-strata
         // search_k_strata(v);
 
-        bool sim_res = check_struc_sim(u, v);
+        bool sim_res;
+        if (mode_query == 1)
+            sim_res = path_utils.judge_pathsim(u, v, pathsim_epsilon);
+        else
+            sim_res = check_struc_sim(u, v);
+
         if (sim_res)
         {
             similar_degree[u]++;
