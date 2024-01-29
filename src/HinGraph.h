@@ -178,8 +178,8 @@ private:
     // similarity compute
     bool check_struc_sim(int a, int b);
     int get_vertex_type(int vertex_id);
-    double calculateJaccardSimilarity(const vector<int> &vec1, const vector<int> &vec2);
-    bool judgeJacSim(const vector<int> &vec1, const vector<int> &vec2, double type_i_epsilon);
+    double calJacSim(const vector<int> &vec1, const vector<int> &vec2);
+    double avgJacSim(int a, int b);
 
     void my_union(int u, int v);
     int find_root(int u);
@@ -193,6 +193,9 @@ private:
                               vector<int> &diameter_all, vector<double> &density_all,
                               vector<double> &pdensity_all,
                               vector<int> &meta_path_num, vector<int> &eff_id);
+    void online_effective_result(int eff_res_i, vector<int> &vertex_num_all, vector<int> &core_num_all,
+                                 vector<int> &diameter_all, vector<double> &density_all,
+                                 vector<double> &cc_all, vector<double> &sim_all);
 
 public:
     // hin graph

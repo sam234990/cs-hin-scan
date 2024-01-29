@@ -215,11 +215,13 @@ void HinGraph::cs_hin_scan(string query_file, string mode, int scale)
             baseline_query_();
             return;
         }
-        // improved_query_();
-        // baseline_query_();
+        else if (mode == "-qeff")
+        {
+            mode_query = 2;
+            baseline_query_();
+            return;
+        }
     }
-
-    // count_core_vertices();
 }
 
 void HinGraph::construct_index(string query_file, string option, int start_k, int scale)
@@ -284,62 +286,6 @@ void HinGraph::construct_index(string query_file, string option, int start_k, in
     return;
 }
 
-// void HinGraph::dfs(int cur_i, int step, int types, vector<long> &res)
-// {
-//     if (step == 4)
-//     {
-//         res[types] += 1;
-//         return;
-//     }
-//     int nei_edge_start = vertex_offset_[cur_i];
-//     int nei_end = ((cur_i + 1) == n) ? m : vertex_offset_[cur_i + 1];
-//     if (step == 0)
-//     {
-//         for (int j = nei_edge_start; j < nei_end; j++)
-//         {
-//             int nei_type = edges_[j].v_type, nei_id = edges_[j].v_id;
-//             if (nei_type == p_query_type)
-//                 continue;
-//             dfs(nei_id, 1, (nei_type + 1) * 1000, res);
-//         }
-//         return;
-//     }
-//     if (step == 1)
-//     {
-//         for (int j = nei_edge_start; j < nei_end; j++)
-//         {
-//             int nei_type = edges_[j].v_type, nei_id = edges_[j].v_id;
-//             if (nei_type == p_query_type)
-//                 continue;
-//             dfs(nei_id, 2, types + nei_type + 1, res);
-//         }
-//         return;
-//     }
-//     if (step == 2)
-//     {
-//         int follow_type = types / 1000 - 1;
-//         for (int j = nei_edge_start; j < nei_end; j++)
-//         {
-//             int nei_type = edges_[j].v_type, nei_id = edges_[j].v_id;
-//             if (nei_type != follow_type)
-//                 continue;
-//             dfs(nei_id, 3, types, res);
-//         }
-//         return;
-//     }
-//     if (step == 3)
-//     {
-//         for (int j = nei_edge_start; j < nei_end; j++)
-//         {
-//             int nei_type = edges_[j].v_type, nei_id = edges_[j].v_id;
-//             if (nei_type != p_query_type)
-//                 continue;
-//             dfs(nei_id, 4, types, res);
-//         }
-//     }
-//     return;
-// }
-
 void HinGraph::find_meta(int type)
 {
     cout << "Start find meta-path" << endl;
@@ -371,7 +317,6 @@ void HinGraph::find_meta(int type)
             }
         }
 
-        // dfs(query_vertex_id, 0, 0, res);
         if (i % (num_query_type_ / 100) == 0)
             cout << i << endl;
     }
@@ -946,11 +891,15 @@ void HinGraph::baseline_query_()
         all_time += cost_time;
         time_cost[i] = cost_time;
         print_result(false, cost_time);
-        // if (query_i + query_type_offset_ == 4860)
-        // break;
+        if (option_ == "-qeff")
+        {
+        }
     }
     string str1 = "finish query " + to_string(query_node_num) + " times, use time:";
     Timer::PrintTime(str1, all_time);
+    if (option_ == "-qeff")
+    {
+    }
 }
 
 void HinGraph::baseline_pathsim_query_()
@@ -1231,6 +1180,7 @@ void HinGraph::effectiveness_result(int eff_res_i, vector<int> &vertex_num_all,
         }
     }
 
+    // density
     vector<int> core_ids;
     core_ids.reserve(num_com);
     vertex_num_all[eff_res_i] = num_com;
@@ -1280,6 +1230,8 @@ void HinGraph::effectiveness_result(int eff_res_i, vector<int> &vertex_num_all,
     double pdensity = double(p_edge_num) / num_com;
     density_all[eff_res_i] = density;
     pdensity_all[eff_res_i] = pdensity;
+
+    // diameter
     int diameter = 0, round = 0, roundThreshold = 20;
     vector<int> dia_res = res;
     random_shuffle(dia_res.begin(), dia_res.end());
@@ -1327,6 +1279,86 @@ void HinGraph::effectiveness_result(int eff_res_i, vector<int> &vertex_num_all,
     int core_2 = *it;
     eff_id.push_back(query_i);
     eff_id.push_back(core_2);
+}
+
+void HinGraph::online_effective_result(int eff_res_i, vector<int> &vertex_num_all, vector<int> &core_num_all,
+                                       vector<int> &diameter_all, vector<double> &density_all,
+                                       vector<double> &cc_all, vector<double> &sim_all)
+{
+    if (is_in_community[query_i] == false)
+        return;
+    // 1. vertex/core num
+    int num_com = 0, edge_num = 0, core_num = 0;
+    vector<int> res;
+    res.reserve(num_query_type_);
+    for (int i = 0; i < num_query_type_; i++)
+    {
+        if (is_in_community[i])
+        {
+            num_com++;
+            res.push_back(i);
+        }
+        if (cand_core_[i])
+            core_num++;
+    }
+    vertex_num_all[eff_res_i] = num_com;
+    core_num_all[eff_res_i] = core_num;
+
+    // 2. density & similarity -- structural similar edge
+    double sim;
+    for (const int &com_i : res)
+    {
+        if (is_in_community[com_i] == false)
+            continue;
+        for (auto &nei : qn_adj_List[com_i])
+        {
+            edge_num++;
+            int nei_i = nei - query_type_offset_;
+            sim += avgJacSim(com_i, nei_i);
+        }
+    }
+    double density = double(edge_num) / num_com;
+    double avg_sim = sim / edge_num;
+    density_all[eff_res_i] = density;
+    sim_all[eff_res_i] = avg_sim;
+
+    // 3. diameter
+    int diameter = 0, round = 0, roundThreshold = 20;
+    vector<int> dia_res = res;
+    random_shuffle(dia_res.begin(), dia_res.end());
+    for (const auto &com_i : dia_res)
+    {
+        int cur_max_hop = 0;
+        unordered_set<int> v_vertex;
+        queue<pair<int, int>> bfs_path;
+        bfs_path.push(make_pair(com_i, 0));
+        v_vertex.insert(com_i);
+
+        while (!bfs_path.empty())
+        {
+            int cur_i = bfs_path.front().first, cur_step = bfs_path.front().second;
+            bfs_path.pop();
+            if (cur_step > cur_max_hop)
+                cur_max_hop = cur_step;
+            for (auto &nei : qn_adj_List[cur_i])
+            {
+                int nei_i = nei - query_type_offset_;
+                if (v_vertex.find(nei_i) != v_vertex.end())// this neighbor visited before
+                    continue;
+                v_vertex.insert(nei_i);
+                bfs_path.push(make_pair(nei_i, cur_step + 1));
+            }
+        }
+        if (cur_max_hop > diameter)
+            diameter = cur_max_hop;
+
+        round++;
+        if (round >= roundThreshold)
+            break;
+    }
+    diameter_all[eff_res_i] = diameter;
+    // 4. clustering coefficient
+    
 }
 
 void HinGraph::index_query_()
@@ -3717,23 +3749,23 @@ bool HinGraph::check_struc_sim(int a, int b)
             continue;
         // if(dn_adj_List[a].d_neighbor_[type].size() == 0 || dn_adj_List[b].d_neighbor_[type].size() == 0)
         //     return false;
-
-        if (judgeJacSim(dn_adj_List[a].d_neighbor_[type], dn_adj_List[b].d_neighbor_[type], type_ep) == false)
+        double sim = calJacSim(dn_adj_List[a].d_neighbor_[type], dn_adj_List[b].d_neighbor_[type]);
+        if (sim < type_ep)
             return false;
     }
     return true;
 }
 
-bool HinGraph::judgeJacSim(const vector<int> &vec1, const vector<int> &vec2, double type_i_epsilon)
+double HinGraph::calJacSim(const vector<int> &vec1, const vector<int> &vec2)
 {
     int size_a = vec1.size(), size_b = vec2.size();
     if (size_a == 0 && size_b == 0)
     {
-        return true;
+        return 1.0;
     }
     else if ((size_a == 0 && size_b != 0) || (size_a != 0 && size_b == 0))
     {
-        return false;
+        return 0.0;
     }
     int intersection = 0;
     size_t i = 0;
@@ -3757,9 +3789,26 @@ bool HinGraph::judgeJacSim(const vector<int> &vec1, const vector<int> &vec2, dou
         }
     }
     int unionSize = size_a + size_b - intersection;
-    double sim = static_cast<double>(intersection) / static_cast<double>(unionSize);
+    return static_cast<double>(intersection) / static_cast<double>(unionSize);
+}
 
-    return sim >= type_i_epsilon;
+double HinGraph::avgJacSim(int a, int b)
+{
+    if (a == b)
+        return 1.0;
+    double avg = 0.0;
+    int type_num = 0;
+    for (const auto &pair : type_epsilon)
+    {
+        int type = pair.first;
+        double type_ep = pair.second;
+        if (type_ep == 0.0)
+            continue;
+        double sim = calJacSim(dn_adj_List[a].d_neighbor_[type], dn_adj_List[b].d_neighbor_[type]);
+        avg += sim;
+        type_num++;
+    }
+    return static_cast<double>(avg) / static_cast<double>(type_num);
 }
 
 void HinGraph::check_empty_set()
