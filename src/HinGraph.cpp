@@ -1343,7 +1343,7 @@ void HinGraph::online_effective_result(int eff_res_i, vector<int> &vertex_num_al
             for (auto &nei : qn_adj_List[cur_i])
             {
                 int nei_i = nei - query_type_offset_;
-                if (v_vertex.find(nei_i) != v_vertex.end())// this neighbor visited before
+                if (v_vertex.find(nei_i) != v_vertex.end()) // this neighbor visited before
                     continue;
                 v_vertex.insert(nei_i);
                 bfs_path.push(make_pair(nei_i, cur_step + 1));
@@ -1357,8 +1357,34 @@ void HinGraph::online_effective_result(int eff_res_i, vector<int> &vertex_num_al
             break;
     }
     diameter_all[eff_res_i] = diameter;
-    // 4. clustering coefficient
     
+    // 4. clustering coefficient
+    double total_coefficient = 0.0;
+    for (const int &com_i : res)
+    {
+        int num_edges = 0;
+        int num_possible_edges = 0;
+        int neighbors = qn_adj_List[com_i].size();
+
+        for (int i = 0; i < neighbors; ++i)
+        {
+            for (int j = i + 1; j < neighbors; ++j)
+            {
+                int nei_i = qn_adj_List[com_i][i] - query_type_offset_;
+                if (find(qn_adj_List[nei_i].begin(), qn_adj_List[nei_i].end(), qn_adj_List[com_i][j]) != qn_adj_List[nei_i].end())
+                    num_edges++;
+                num_possible_edges++;
+            }
+        }
+
+        if (num_possible_edges != 0)
+        {
+            double tmp = static_cast<double>(2 * num_edges) / num_possible_edges;
+            total_coefficient += tmp;
+        }
+    }
+
+    cc_all[eff_res_i] = total_coefficient / num_com;
 }
 
 void HinGraph::index_query_()
