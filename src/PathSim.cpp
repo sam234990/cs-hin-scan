@@ -60,7 +60,7 @@ void PathSim::initial_query_vertex(int q_num)
 
 void PathSim::search(const HinGraph &graph, int query_i)
 {
-    int query_vertex_id = query_i + graph.num_query_type_;
+    int query_vertex_id = query_i + graph.query_type_offset_;
     for (size_t i = 0; i < MetaPathVec.size(); i++)
     {
         MetaPath &cur_p = MetaPathVec[i];
@@ -91,16 +91,22 @@ void PathSim::search(const HinGraph &graph, int query_i)
     path_search_finish_[query_i] = true;
 }
 
-void PathSim::compute_pathsim(int i, int j, vector<float> &sim_res)
+double PathSim::compute_avg_pathsim(int i, int j)
 {
-    sim_res.resize(MetaPathVec.size());
+    if(i == j)
+        return 1.0;
+    double avg = 0.0;
+    int num = 0;
     for (size_t meta_i = 0; meta_i < MetaPathVec.size(); meta_i++)
     {
         int self_i = query_path_cnt[i][meta_i].ins_path_cnt[i];
         int self_j = query_path_cnt[j][meta_i].ins_path_cnt[j];
         int ins_ij = query_path_cnt[i][meta_i].ins_path_cnt[j];
-        sim_res[meta_i] = float(ins_ij) / (self_i * self_j);
+        double sim = static_cast<double>(2 * ins_ij) / (self_i + self_j);
+        avg += sim;
+        num++;
     }
+    return avg / num;
 }
 
 bool PathSim::judge_pathsim(int i, int j, const vector<float> sim_threshold)
@@ -112,7 +118,7 @@ bool PathSim::judge_pathsim(int i, int j, const vector<float> sim_threshold)
         int self_i = query_path_cnt[i][meta_i].ins_path_cnt[i];
         int self_j = query_path_cnt[j][meta_i].ins_path_cnt[j];
         int ins_ij = query_path_cnt[i][meta_i].ins_path_cnt[j];
-        float sim = float(ins_ij) / (self_i * self_j);
+        float sim = float(2 * ins_ij) / (self_i + self_j);
         if(sim < sim_threshold[meta_i])
             return false;
     }

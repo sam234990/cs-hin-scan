@@ -179,7 +179,8 @@ private:
     bool check_struc_sim(int a, int b);
     int get_vertex_type(int vertex_id);
     double calJacSim(const vector<int> &vec1, const vector<int> &vec2);
-    double avgJacSim(int a, int b);
+    double calCosSim(const vector<int> &vec1, const vector<int> &vec2);
+    double avgStrSim(int a, int b);
 
     void my_union(int u, int v);
     int find_root(int u);

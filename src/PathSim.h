@@ -38,7 +38,7 @@ public:
     void initial_metapaths(vector<string> mps);
     void initial_query_vertex(int q_num);
     void search(const HinGraph& graph, int query_i);
-    void compute_pathsim(int i, int j, vector<float> &sim_res);
+    double compute_avg_pathsim(int i, int j);
     bool judge_pathsim(int i, int j, const vector<float> sim_threshold);
     
     void generate_cand_nei(const HinGraph& graph, int query_i, vector<int> &cand_nei);

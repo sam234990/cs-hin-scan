@@ -205,10 +205,6 @@ void HinGraph::cs_hin_scan(string query_file, string mode, int scale)
             baseline_query_();
             return;
         }
-        else if (mode == "-q3")
-        {
-            mode_query = 3;
-        }
         else if (mode == "-qscal")
         {
             mode_query = 6;
@@ -216,6 +212,12 @@ void HinGraph::cs_hin_scan(string query_file, string mode, int scale)
             return;
         }
         else if (mode == "-qeff")
+        {
+            mode_query = 2;
+            baseline_query_();
+            return;
+        }
+        else if (mode == "-qeffcos")
         {
             mode_query = 2;
             baseline_query_();
@@ -847,6 +849,14 @@ void HinGraph::baseline_query_()
 {
     cout << "start baseline online query " << endl;
     long all_time = 0;
+    has_community = 0;
+    vector<int> vertex_num_all(1000, 0);
+    vector<int> core_num_all(1000, 0);
+    vector<int> diameter_all(1000, 0);
+    vector<double> density_all(1000, 0);
+    vector<double> cc_all(1000, 0);
+    vector<double> sim_all(1000, 0);
+
     vector<long> time_cost(query_node_num, 0);
     for (int i = 0; i < query_node_num && i < query_node_list.size(); i++)
     {
@@ -854,13 +864,10 @@ void HinGraph::baseline_query_()
         reinitialize_query_();
         queue<int> cs_node_q, delete_q;
         is_in_community[query_i] = true;
-        // if (query_i + query_type_offset_ == 4860)
-        //     cout << "error" << endl;
 
         Timer t1;
         t1.Start();
         if (mode_query == 2)
-        // if (mode_query == 2 || mode_query == 6)
         {
             online_query_scan();
         }
@@ -891,14 +898,35 @@ void HinGraph::baseline_query_()
         all_time += cost_time;
         time_cost[i] = cost_time;
         print_result(false, cost_time);
-        if (option_ == "-qeff")
-        {
-        }
+        if (option_ == "-qeff" || option_ == "-qeffcos")
+            online_effective_result(i, vertex_num_all, core_num_all, diameter_all,
+                                    density_all, cc_all, sim_all);
     }
     string str1 = "finish query " + to_string(query_node_num) + " times, use time:";
     Timer::PrintTime(str1, all_time);
-    if (option_ == "-qeff")
+    if (option_ == "-qeff" || option_ == "-qeffcos")
     {
+        long vertex_num_ = 0, d_ = 0, core_num_ = 0;
+        double den_ = 0.0, cc_ = 0.0, sim_ = 0.0;
+        int com_num = 0;
+        for (int i = 0; i < query_node_num && i < query_node_list.size(); i++)
+        {
+            if (vertex_num_all[i] == 0)
+                continue;
+            com_num++;
+            vertex_num_ += vertex_num_all[i];
+            core_num_ += core_num_all[i];
+            d_ += diameter_all[i];
+            den_ += density_all[i];
+            cc_ += cc_all[i];
+            sim_ += sim_all[i];
+        }
+        cout << "average vertex num is " << double(vertex_num_) / com_num << endl;
+        cout << "average core num is " << double(core_num_) / com_num << endl;
+        cout << "average diameter is " << double(d_) / com_num << endl;
+        cout << "average density is " << den_ / com_num << endl;
+        cout << "average cc is " << cc_ / com_num << endl;
+        cout << "average similarity is " << sim_ / com_num << endl;
     }
 }
 
@@ -908,6 +936,14 @@ void HinGraph::baseline_pathsim_query_()
     path_utils.initial_metapaths(metapath_vecs);
     path_utils.initial_query_vertex(num_query_type_);
     long all_time = 0;
+    has_community = 0;
+    vector<int> vertex_num_all(1000, 0);
+    vector<int> core_num_all(1000, 0);
+    vector<int> diameter_all(1000, 0);
+    vector<double> density_all(1000, 0);
+    vector<double> cc_all(1000, 0);
+    vector<double> sim_all(1000, 0);
+
     vector<long> time_cost(query_node_num, 0);
     for (int i = 0; i < query_node_num && i < query_node_list.size(); i++)
     {
@@ -924,6 +960,7 @@ void HinGraph::baseline_pathsim_query_()
         if (similar_degree[query_i] < p_mu)
         {
             is_in_community[query_i] = false;
+            cout << query_i << " Cannot search a SCAN-like community (PathSim)" << endl;
         }
         else
         {
@@ -948,7 +985,30 @@ void HinGraph::baseline_pathsim_query_()
         all_time += cost_time;
         time_cost[i] = cost_time;
         print_result(false, cost_time);
+        online_effective_result(i, vertex_num_all, core_num_all, diameter_all,
+                                density_all, cc_all, sim_all);
     }
+    int vertex_num_ = 0, d_ = 0, core_num_ = 0;
+    double den_ = 0.0, cc_ = 0.0, sim_ = 0.0;
+    int com_num = 0;
+    for (int i = 0; i < query_node_num && i < query_node_list.size(); i++)
+    {
+        if (vertex_num_all[i] == 0)
+            continue;
+        com_num++;
+        vertex_num_ += vertex_num_all[i];
+        core_num_ += core_num_all[i];
+        d_ += diameter_all[i];
+        den_ += density_all[i];
+        cc_ += cc_all[i];
+        sim_ += sim_all[i];
+    }
+    cout << "average vertex num is " << double(vertex_num_) / com_num << endl;
+    cout << "average core num is " << double(core_num_) / com_num << endl;
+    cout << "average diameter is " << double(d_) / com_num << endl;
+    cout << "average density is " << den_ / com_num << endl;
+    cout << "average cc is " << cc_ / com_num << endl;
+    cout << "average similarity is " << sim_ / com_num << endl;
 }
 
 void HinGraph::online_query_scan()
@@ -1009,7 +1069,7 @@ void HinGraph::scan_check_cluster_core(int u)
             //     continue;
             // }
             bool sim_res;
-            if (mode_query == 1)
+            if (option_ == "-qpath_sim")
                 sim_res = path_utils.judge_pathsim(u, v, pathsim_epsilon);
             else
                 sim_res = check_struc_sim(u, v);
@@ -1297,15 +1357,15 @@ void HinGraph::online_effective_result(int eff_res_i, vector<int> &vertex_num_al
         {
             num_com++;
             res.push_back(i);
+            if (cand_core_[i])
+                core_num++;
         }
-        if (cand_core_[i])
-            core_num++;
     }
     vertex_num_all[eff_res_i] = num_com;
     core_num_all[eff_res_i] = core_num;
 
     // 2. density & similarity -- structural similar edge
-    double sim;
+    double sim = 0.0;
     for (const int &com_i : res)
     {
         if (is_in_community[com_i] == false)
@@ -1314,7 +1374,10 @@ void HinGraph::online_effective_result(int eff_res_i, vector<int> &vertex_num_al
         {
             edge_num++;
             int nei_i = nei - query_type_offset_;
-            sim += avgJacSim(com_i, nei_i);
+            if (option_ == "-qpath_sim")
+                sim += path_utils.compute_avg_pathsim(com_i, nei_i);
+            else
+                sim += avgStrSim(com_i, nei_i);
         }
     }
     double density = double(edge_num) / num_com;
@@ -1357,7 +1420,7 @@ void HinGraph::online_effective_result(int eff_res_i, vector<int> &vertex_num_al
             break;
     }
     diameter_all[eff_res_i] = diameter;
-    
+
     // 4. clustering coefficient
     double total_coefficient = 0.0;
     for (const int &com_i : res)
@@ -1368,10 +1431,15 @@ void HinGraph::online_effective_result(int eff_res_i, vector<int> &vertex_num_al
 
         for (int i = 0; i < neighbors; ++i)
         {
+            int nei_i = qn_adj_List[com_i][i] - query_type_offset_;
+            if (nei_i == com_i)
+                continue;
             for (int j = i + 1; j < neighbors; ++j)
             {
-                int nei_i = qn_adj_List[com_i][i] - query_type_offset_;
-                if (find(qn_adj_List[nei_i].begin(), qn_adj_List[nei_i].end(), qn_adj_List[com_i][j]) != qn_adj_List[nei_i].end())
+                int j_id = qn_adj_List[com_i][j];
+                if (j_id - query_type_offset_ == com_i)
+                    continue;
+                if (find(qn_adj_List[nei_i].begin(), qn_adj_List[nei_i].end(), j_id) != qn_adj_List[nei_i].end())
                     num_edges++;
                 num_possible_edges++;
             }
@@ -1379,7 +1447,7 @@ void HinGraph::online_effective_result(int eff_res_i, vector<int> &vertex_num_al
 
         if (num_possible_edges != 0)
         {
-            double tmp = static_cast<double>(2 * num_edges) / num_possible_edges;
+            double tmp = static_cast<double>(num_edges) / num_possible_edges;
             total_coefficient += tmp;
         }
     }
@@ -3775,7 +3843,11 @@ bool HinGraph::check_struc_sim(int a, int b)
             continue;
         // if(dn_adj_List[a].d_neighbor_[type].size() == 0 || dn_adj_List[b].d_neighbor_[type].size() == 0)
         //     return false;
-        double sim = calJacSim(dn_adj_List[a].d_neighbor_[type], dn_adj_List[b].d_neighbor_[type]);
+        double sim = 0.0;
+        if (option_ == "-qeffcos")
+            sim = calCosSim(dn_adj_List[a].d_neighbor_[type], dn_adj_List[b].d_neighbor_[type]);
+        else
+            sim = calJacSim(dn_adj_List[a].d_neighbor_[type], dn_adj_List[b].d_neighbor_[type]);
         if (sim < type_ep)
             return false;
     }
@@ -3818,7 +3890,43 @@ double HinGraph::calJacSim(const vector<int> &vec1, const vector<int> &vec2)
     return static_cast<double>(intersection) / static_cast<double>(unionSize);
 }
 
-double HinGraph::avgJacSim(int a, int b)
+double HinGraph::calCosSim(const vector<int> &vec1, const vector<int> &vec2)
+{
+    int size_a = vec1.size(), size_b = vec2.size();
+    if (size_a == 0 && size_b == 0)
+    {
+        return 1.0;
+    }
+    else if ((size_a == 0 && size_b != 0) || (size_a != 0 && size_b == 0))
+    {
+        return 0.0;
+    }
+    int intersection = 0;
+    size_t i = 0;
+    size_t j = 0;
+
+    while (i < vec1.size() && j < vec2.size())
+    {
+        if (vec1[i] == vec2[j])
+        {
+            intersection++;
+            i++;
+            j++;
+        }
+        else if (vec1[i] < vec2[j])
+        {
+            i++;
+        }
+        else
+        {
+            j++;
+        }
+    }
+    double denominator = sqrt(size_a * size_b);
+    return static_cast<double>(intersection) / denominator;
+}
+
+double HinGraph::avgStrSim(int a, int b)
 {
     if (a == b)
         return 1.0;
@@ -3830,7 +3938,11 @@ double HinGraph::avgJacSim(int a, int b)
         double type_ep = pair.second;
         if (type_ep == 0.0)
             continue;
-        double sim = calJacSim(dn_adj_List[a].d_neighbor_[type], dn_adj_List[b].d_neighbor_[type]);
+        double sim = 0.0;
+        if (option_ == "-qeffcos")
+            sim = calCosSim(dn_adj_List[a].d_neighbor_[type], dn_adj_List[b].d_neighbor_[type]);
+        else
+            sim = calJacSim(dn_adj_List[a].d_neighbor_[type], dn_adj_List[b].d_neighbor_[type]);
         avg += sim;
         type_num++;
     }
