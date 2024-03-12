@@ -1636,6 +1636,8 @@ void HinGraph::select_query_node()
     vector<int> edge_all;
     edge_all.reserve(num_query_type_);
 
+    vector<vector<int>> all_res_com;
+
     Timer t1;
     t1.Start();
     while (true)
@@ -1760,6 +1762,8 @@ void HinGraph::select_query_node()
         }
         community_all_num++;
         com_size.push_back(com_num);
+
+        all_res_com.push_back(res);
     }
     t1.StopAndPrint("finished time");
     // Timer::PrintTime(str1, all_time);
@@ -1821,6 +1825,44 @@ void HinGraph::select_query_node()
     cout << "avn: vertex number per community is " << aver_size << endl;
     cout << "ave: edge number per community is " << aver_edge << endl;
     cout << "avs: average similarity is " << aver_sim << endl;
+
+    vector<string> vertex_names(n);
+    string k_thres_path = data_dir_ + "/vertex_name.txt";
+    ifstream inputFile(k_thres_path);
+    std::string line;
+    int idx = 0;
+    while (std::getline(inputFile, line))
+    {
+        std::istringstream iss(line);
+        int num1, num2;
+        std::string name;
+        iss >> num1 >> num2;
+        std::getline(iss >> std::ws, name);
+        // 去掉开头的空格
+        name.erase(name.begin(), std::find_if(name.begin(), name.end(), [](int ch) { return !std::isspace(ch); }));
+        vertex_names[idx] = line;
+        idx++;
+    }
+    int res_com_id = 0;
+    for (const auto &res : all_res_com)
+    {
+        cout << res_com_id++ << endl;
+        for (auto i : res)
+        {
+            cout << vertex_names[i] << ": ";
+            for (auto j : res)
+            {
+                bool sim_res = check_struc_sim(i, j);
+                if (sim_res)
+                    cout << j << " ";
+            }
+            cout << endl;
+        }
+    }
+   
+
+    return;
+
     cout << "start save community number" << endl;
 
     // string community_num_path = data_index_dir_ + "/community_num.txt";
