@@ -1827,10 +1827,13 @@ void HinGraph::select_query_node()
     cout << "avs: average similarity is " << aver_sim << endl;
 
     vector<string> vertex_names(n);
-    string k_thres_path = data_dir_ + "/vertex_name.txt";
-    ifstream inputFile(k_thres_path);
+    string vertex_name_file = data_dir_ + "/vertex_name.txt";
+    ifstream inputFile(vertex_name_file);
     std::string line;
     int idx = 0;
+    utils u1;
+    int line_cnt = u1.getLineCount(vertex_name_file);
+    cout << n << " " << line_cnt << (n == line_cnt) << endl;
     while (std::getline(inputFile, line))
     {
         std::istringstream iss(line);
@@ -1838,43 +1841,57 @@ void HinGraph::select_query_node()
         std::string name;
         iss >> num1 >> num2;
         std::getline(iss >> std::ws, name);
-        // 去掉开头的空格
-        name.erase(name.begin(), std::find_if(name.begin(), name.end(), [](int ch) { return !std::isspace(ch); }));
-        vertex_names[idx] = line;
+        while (!name.empty() && (name.back() == '\n' || name.back() == '\r'))
+            name.pop_back();
+        vertex_names[idx] = name;
         idx++;
     }
+    cout << "finish load vertex name, start output result" << endl;
+
     int res_com_id = 0;
     for (const auto &res : all_res_com)
     {
-        cout << res_com_id++ << endl;
+        cout << "community num :" << res_com_id++ << endl;
+        set<int> res_set(res.begin(), res.end());
         for (auto i : res)
         {
-            cout << vertex_names[i] << ": ";
-            for (auto j : res)
+            cout << i + query_type_offset_ << " " << vertex_names[i + query_type_offset_] << ": ";
+            vector<int> out_nei;
+            out_nei.reserve(h_sim[i].size());
+            for (const auto &i_nei : h_sim[i])
             {
-                bool sim_res = check_struc_sim(i, j);
-                if (sim_res)
-                    cout << j << " ";
+                if (judge_demoinate(i_nei.sim_vec, index_order_epsilon) == false)
+                    continue; // this edge should be ignore
+                if (res_set.find(i_nei.neighbor_i) == res_set.end())
+                    out_nei.push_back(i_nei.neighbor_i); // not in cur community
+                else
+                    cout << i_nei.neighbor_i + query_type_offset_ << " ";
+            }
+            if (!out_nei.empty())
+            {
+                cout << "-- out com:";
+                for (auto out_nei_i : out_nei)
+                    cout << out_nei_i + query_type_offset_ << " ";
             }
             cout << endl;
         }
     }
-   
+    cout << "finish output" << endl;
 
     return;
 
-    cout << "start save community number" << endl;
+    // cout << "start save community number" << endl;
 
-    // string community_num_path = data_index_dir_ + "/community_num.txt";
-    string community_num_path = data_index_dir_ + "/" + to_string(p_query_type) + "/community_num" + to_string(p_mu) + ".txt";
-    ofstream community_num_file = open_file_ofstream(community_num_path);
-    for (int i = 0; i < num_query_type_; i++)
-    {
-        if (community_number[i] == 0)
-            continue;
-        community_num_file << i << " " << community_number[i] << endl;
-    }
-    community_num_file.close();
+    // // string community_num_path = data_index_dir_ + "/community_num.txt";
+    // string community_num_path = data_index_dir_ + "/" + to_string(p_query_type) + "/community_num" + to_string(p_mu) + ".txt";
+    // ofstream community_num_file = open_file_ofstream(community_num_path);
+    // for (int i = 0; i < num_query_type_; i++)
+    // {
+    //     if (community_number[i] == 0)
+    //         continue;
+    //     community_num_file << i << " " << community_number[i] << endl;
+    // }
+    // community_num_file.close();
 }
 
 bool HinGraph::index_judge_core(int i, int k)

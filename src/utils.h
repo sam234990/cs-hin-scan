@@ -62,7 +62,6 @@ class utils
 	vector<vector<int>> hin_schema_adjacencyMatrix;
 	vector<vector<int>> hin_schema_edge_cnt;
 
-	int getLineCount(string &filename);
 	int get_vertex_type(int vertex_id);
 	bool static compareVertex(const Vertex_type& v1, const Vertex_type& v2);
 	void make_hin_schema();
@@ -79,6 +78,7 @@ public:
 	void read_and_print_vertex();
 	void read_and_print_graph();
 	void print_file(string input);
+	int getLineCount(string &filename);
 };
 
 #endif
