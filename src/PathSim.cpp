@@ -208,6 +208,9 @@ void PathSim::trans_homo_graph(const HinGraph &graph, string meta_path, string s
             }
         }
         set<int> uni_nei(i_neighbor.begin(), i_neighbor.end());
+        auto it = uni_nei.find(i);
+        if (it != uni_nei.end())
+            uni_nei.erase(it);
         i_neighbor.assign(uni_nei.begin(), uni_nei.end());
         std::sort(i_neighbor.begin(), i_neighbor.end());
         m += i_neighbor.size();
