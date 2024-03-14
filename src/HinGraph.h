@@ -111,7 +111,6 @@ private:
     vector<bool> res_community;
     multiLevelQueue mlq;
 
-    void load_query_file(string query_file);
     void initialize_query_();
     void reinitialize_query_();
     void baseline_query_();
@@ -235,6 +234,7 @@ public:
     ~HinGraph();
 
     void load_graph();
+    void load_query_file(string query_file);
     void output_result(string output);
     void cs_hin_scan(string query_file, string mode, int scale);
     void construct_index(string query_file, string option, int start_k, int scale);

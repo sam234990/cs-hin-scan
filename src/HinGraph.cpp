@@ -560,6 +560,10 @@ void HinGraph::load_query_file(string query_file_path)
         }
         cout << endl;
     }
+    
+    query_type_offset_ = vertex_start_map_[p_query_type];
+    int end = ((p_query_type + 1) == n_types) ? n : vertex_start_map_[p_query_type + 1];
+    num_query_type_ = end - query_type_offset_;
 
     return;
 }
@@ -640,10 +644,7 @@ void HinGraph::initialize_query_()
     // cout << cand_gen_type << " ";
 
     // initial query neighbor
-    query_type_offset_ = vertex_start_map_[p_query_type];
-    int end = ((p_query_type + 1) == n_types) ? n : vertex_start_map_[p_query_type + 1];
-    num_query_type_ = end - query_type_offset_;
-    // cout << num_query_type_ << endl;
+    
 
     if (random_query)
     {

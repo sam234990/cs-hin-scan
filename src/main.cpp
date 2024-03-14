@@ -115,6 +115,38 @@ int main(int argc, char const *argv[])
         g1.find_meta(query_type);
         get_memory_usage();
     }
+    else if (option == "-transhomo")
+    {
+        if (argc < 4)
+        {
+            cerr << "Invalid number of arguments." << endl;
+            cerr << "Usage: " << argv[0] << " -q[0-9 | idx] <input> <query_file> [-o <output_path>] [scale]"
+                 << endl;
+            return 1;
+        }
+        string input_path = argv[2];
+        string query_file = argv[3];
+        string output_path = "";
+        if (argc > 5)
+        {
+            output_path = argv[5];
+        }
+        else
+        {
+            cerr << "Invalid number of arguments." << endl;
+            cerr << "Usage: " << argv[0] << " -transhomo <input> <query_file> -o <output_path> " << endl;
+            return 1;
+        }
+        cout << "Option: " << option << endl;
+        cout << "Input Path: " << input_path << endl;
+        cout << "Query File: " << query_file << endl;
+        HinGraph g1 = HinGraph(input_path);
+
+        g1.load_graph();
+        g1.load_query_file(query_file);
+        PathSim p1 = PathSim();
+        p1.trans_homo_graph(g1, g1.metapath_vecs[0], output_path);
+    }
     else
     {
         cerr << "Invalid option: " << option << endl;

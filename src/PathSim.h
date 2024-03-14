@@ -32,6 +32,8 @@ public:
     int query_num_;
     vector<vector<pathcnt>> query_path_cnt;
     vector<bool> path_search_finish_;
+    vector<vector<int>> homo_graph;
+    vector<int> homo_degree;
 
     PathSim(/* args */);
     ~PathSim();
@@ -43,4 +45,5 @@ public:
     
     void generate_cand_nei(const HinGraph& graph, int query_i, vector<int> &cand_nei);
 
+    void trans_homo_graph(const HinGraph& graph, string meta_path, string save_path);
 };
