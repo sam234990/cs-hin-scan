@@ -105,6 +105,7 @@ private:
     // cs variable
     vector<vector<int>> cand_sn_list; // candidate structure neighbor
     vector<vector<int>> non_sn_list;  // qn
+    vector<int> cd_res_ssc;
     int cand_gen_type;
     vector<bool> ks_visit;
     vector<bool> is_in_community;
@@ -116,6 +117,7 @@ private:
     void baseline_query_();
     void baseline_pathsim_query_();
     void online_query_scan();
+    void online_cd();
     void scan_check_cluster_core(int u);
 
     // void improved_query_();

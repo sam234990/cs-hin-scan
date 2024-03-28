@@ -205,6 +205,12 @@ void HinGraph::cs_hin_scan(string query_file, string mode, int scale)
             baseline_query_();
             return;
         }
+        else if (mode == "-qcdSCAN")
+        {
+            mode_query = 2;
+            online_cd();
+            return;
+        }
         else if (mode == "-qscal")
         {
             mode_query = 6;
@@ -560,7 +566,7 @@ void HinGraph::load_query_file(string query_file_path)
         }
         cout << endl;
     }
-    
+
     query_type_offset_ = vertex_start_map_[p_query_type];
     int end = ((p_query_type + 1) == n_types) ? n : vertex_start_map_[p_query_type + 1];
     num_query_type_ = end - query_type_offset_;
@@ -644,7 +650,6 @@ void HinGraph::initialize_query_()
     // cout << cand_gen_type << " ";
 
     // initial query neighbor
-    
 
     if (random_query)
     {
@@ -1029,6 +1034,7 @@ void HinGraph::online_query_scan()
             int vertex_i = mlq.get_next();
             if (vertex_i == -1)
                 break;
+            cd_res_ssc.push_back(vertex_i);
             while (visited_qtv_[vertex_i]) // this vertex has been visited
             {
                 vertex_i = mlq.get_next();
@@ -1041,6 +1047,47 @@ void HinGraph::online_query_scan()
             scan_check_cluster_core(vertex_i);
         }
     }
+}
+
+void HinGraph::online_cd()
+{
+    cout << "start online community detection" << endl;
+    long all_time = 0;
+    has_community = 0;
+    cd_res_ssc.reserve(num_query_type_);
+    vector<vector<int>> all_res_com;
+    int community_all_num = 0;
+
+    vector<long> time_cost(query_node_num, 0);
+    for (int i = 0; i < num_query_type_; i++)
+    {
+        if (cand_core_[i] == true)
+            continue;
+        query_i = i;
+        reinitialize_query_();
+        is_in_community[query_i] = true;
+        cd_res_ssc.clear();
+        cd_res_ssc.reserve(num_query_type_);
+
+        Timer t1;
+        t1.Start();
+        online_query_scan();
+
+        long cost_time = t1.StopTime();
+        all_time += cost_time;
+        time_cost[i] = cost_time;
+        print_result(false, cost_time);
+
+        for (auto com_i : cd_res_ssc)
+            is_in_community[com_i] = false;
+        community_all_num++;
+
+        sort(cd_res_ssc.begin(), cd_res_ssc.end());
+        all_res_com.push_back(cd_res_ssc);
+    }
+    cout << "contain community numbers:" << community_all_num << endl;
+    string str1 = "finish online community detection, use time:";
+    Timer::PrintTime(str1, all_time);
 }
 
 void HinGraph::scan_check_cluster_core(int u)
@@ -1588,6 +1635,14 @@ void HinGraph::index_query_()
     }
 }
 
+float sum_float_vec(const vector<float> &vec)
+{
+    float sum = 0;
+    for (const auto v : vec)
+        sum += v;
+    return sum;
+}
+
 void HinGraph::select_query_node()
 {
     load_all_similarity();
@@ -1763,7 +1818,7 @@ void HinGraph::select_query_node()
         }
         community_all_num++;
         com_size.push_back(com_num);
-
+        sort(res.begin(), res.end());
         all_res_com.push_back(res);
     }
     t1.StopAndPrint("finished time");
@@ -1852,30 +1907,73 @@ void HinGraph::select_query_node()
     int res_com_id = 0;
     for (const auto &res : all_res_com)
     {
-        cout << "community num :" << res_com_id++ << endl;
+        res_com_id++;
+        if (res.size() > 1000 || res.size() < 10)
+        {
+            // cout << "this community contain too many vertex, not print" << endl;
+            continue;
+        }
+        cout << "community num :" << res_com_id << endl;
+        cout << "the number of vertex in this community: " << res.size() << endl;
+
         set<int> res_set(res.begin(), res.end());
+        set<int> res_connect_set(res.begin(), res.end());
+        int edge_all_cur = 0;
         for (auto i : res)
         {
-            cout << i + query_type_offset_ << " " << vertex_names[i + query_type_offset_] << ": ";
+            cout << i << " : ";
             vector<int> out_nei;
+            vector<float> out_sim;
+            vector<pair<int, float>> other_nei;
             out_nei.reserve(h_sim[i].size());
+            out_sim.reserve(h_sim[i].size());
+            other_nei.reserve(h_sim[i].size());
             for (const auto &i_nei : h_sim[i])
             {
+                float sum_sim = sum_float_vec(i_nei.sim_vec);
                 if (judge_demoinate(i_nei.sim_vec, index_order_epsilon) == false)
+                {
+                    other_nei.push_back(make_pair(i_nei.neighbor_i, sum_sim));
                     continue; // this edge should be ignore
+                }
                 if (res_set.find(i_nei.neighbor_i) == res_set.end())
+                {
                     out_nei.push_back(i_nei.neighbor_i); // not in cur community
+                    out_sim.push_back(sum_sim);          // not in cur community
+                }
                 else
-                    cout << i_nei.neighbor_i + query_type_offset_ << " ";
+                {
+                    edge_all_cur++;
+                    cout << i_nei.neighbor_i << "-" << sum_sim << " | ";
+                }
             }
+            cout << "***";
             if (!out_nei.empty())
             {
-                cout << "-- out com:";
-                for (auto out_nei_i : out_nei)
-                    cout << out_nei_i + query_type_offset_ << " ";
+                for (int t = 0; t < out_nei.size(); t++)
+                {
+                    res_connect_set.insert(out_nei[t]);
+                    cout << out_nei[t] << "-" << out_sim[t] << " | ";
+                }
             }
-            cout << endl;
+            if (!other_nei.empty())
+            {
+                for (auto pair : other_nei)
+                {
+                    cout << pair.first << "-" << pair.second << " | ";
+                    res_connect_set.insert(pair.first);
+                }
+            }
+            cout << ": " << vertex_names[i + query_type_offset_] << endl;
         }
+        cout << "current avg degree is :" << double(edge_all_cur) / res.size() << "  ";
+        if (double(edge_all_cur) / res.size() > 0.4 * res.size())
+            cout << " this community has high avg degree :" << res.size() << " id :" << res_com_id << endl;
+        else
+            cout << endl;
+        for (auto i : res_connect_set)
+            cout << i << " ";
+        cout << endl;
     }
     cout << "finish output" << endl;
 
