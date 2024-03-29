@@ -1019,16 +1019,19 @@ void HinGraph::baseline_pathsim_query_()
 
 void HinGraph::online_query_scan()
 {
-    search_k_strata(query_i);
+    if (ks_visit[query_i] == false)
+    {
+        search_k_strata(query_i);
+    }
     search_cand_sn(query_i);
     scan_check_cluster_core(query_i);
     if (similar_degree[query_i] < p_mu)
     {
-        // cout << query_i << " Cannot search a SCAN-like community" << endl;
         is_in_community[query_i] = false;
     }
     else
     {
+        cd_res_ssc.push_back(query_i);
         while (!mlq.empty())
         {
             int vertex_i = mlq.get_next();
@@ -1054,21 +1057,23 @@ void HinGraph::online_cd()
     cout << "start online community detection" << endl;
     long all_time = 0;
     has_community = 0;
+    reinitialize_query_();
+    cd_res_ssc.clear();
     cd_res_ssc.reserve(num_query_type_);
     vector<vector<int>> all_res_com;
     int community_all_num = 0;
 
-    vector<long> time_cost(query_node_num, 0);
+    vector<long> time_cost(num_query_type_, 0);
     for (int i = 0; i < num_query_type_; i++)
     {
-        if (cand_core_[i] == true)
+        if (visited_qtv_[i] == true) // this vertex has been check core or not
             continue;
         query_i = i;
-        reinitialize_query_();
-        is_in_community[query_i] = true;
-        cd_res_ssc.clear();
-        cd_res_ssc.reserve(num_query_type_);
 
+        is_in_community[query_i] = true;
+
+        // if (i == 822)
+        // cout << i << endl;
         Timer t1;
         t1.Start();
         online_query_scan();
@@ -1077,15 +1082,21 @@ void HinGraph::online_cd()
         all_time += cost_time;
         time_cost[i] = cost_time;
         print_result(false, cost_time);
+        is_in_community[query_i] = false;
 
-        for (auto com_i : cd_res_ssc)
-            is_in_community[com_i] = false;
-        community_all_num++;
-
-        sort(cd_res_ssc.begin(), cd_res_ssc.end());
-        all_res_com.push_back(cd_res_ssc);
+        if (cd_res_ssc.size() > 0)
+        {
+            for (auto com_i : cd_res_ssc)
+                is_in_community[com_i] = false;
+            community_all_num++;
+            sort(cd_res_ssc.begin(), cd_res_ssc.end());
+            all_res_com.push_back(cd_res_ssc);
+            mlq.initial(num_query_type_);
+            cd_res_ssc.clear();
+            cd_res_ssc.reserve(num_query_type_);
+        }
     }
-    cout << "contain community numbers:" << community_all_num << endl;
+    cout << all_time << "contain community numbers:" << community_all_num << endl;
     string str1 = "finish online community detection, use time:";
     Timer::PrintTime(str1, all_time);
 }
@@ -1095,9 +1106,12 @@ void HinGraph::scan_check_cluster_core(int u)
     // 1. check core
     int vertex_u_id = u + query_type_offset_;
     int j = 0;
-    unordered_set<int> v_vertex(qn_adj_List[u].begin(), qn_adj_List[u].end());
+    vector<bool> v_vertex(n, false);
+    for (auto qi : qn_adj_List[u])
+        v_vertex[qi] = true;
+
     for (auto not_i : non_sn_list[u])
-        v_vertex.insert(not_i);
+        v_vertex[not_i] = true;
 
     if (similar_degree[u] < p_mu)
     {
@@ -1109,8 +1123,10 @@ void HinGraph::scan_check_cluster_core(int u)
         {
             int v_id = cand_sn_list[u][j];
             int v = v_id - query_type_offset_;
-            if (v_vertex.find(v_id) != v_vertex.end()) // this sn has been computed before
+            if (v_vertex[v_id] == true)
                 continue;
+            // if (v_vertex.find(v_id) != v_vertex.end()) // this sn has been computed before
+            //     continue;
             // if ((mode_query == 2) && is_in_community[v] == true)
             // {
             //     tmp_in_com.push_back(v_id);
@@ -1168,8 +1184,11 @@ void HinGraph::scan_check_cluster_core(int u)
         int v = v_id - query_type_offset_;
         if (is_in_community[v] == true) // already in community
             continue;
-        if (v_vertex.find(v_id) != v_vertex.end()) // this sn has been computed before
+
+        if (v_vertex[v_id] == true)
             continue;
+        // if (v_vertex.find(v_id) != v_vertex.end()) // this sn has been computed before
+        //     continue;
         // if (ks_visit[v] == false) // this vertex has not searched k-strata
         // search_k_strata(v);
 
@@ -2066,13 +2085,10 @@ void HinGraph::search_k_strata(int i)
 
 void HinGraph::search_cand_sn(int i)
 {
+    if (cand_sn_list[i].size() != 0)
+        return;
     // 1. target type is considered and located in k-strata
     Vertex_neighbor &dn_i = dn_adj_List[i];
-    // if (distance_[p_query_type] != -1 && dn_i.num_d_neighbor[p_query_type] != 0)
-    // {
-    //     cand_sn_list[i].assign(dn_i.d_neighbor_[p_query_type].begin(), dn_i.d_neighbor_[p_query_type].end());
-    //     return;
-    // }
 
     // 2. target type is not considered, use cand gen type k-strata search cand_sn
     int can_gen = cand_gen_type;
@@ -2091,10 +2107,10 @@ void HinGraph::search_cand_sn(int i)
     }
     const vector<int> &gen_type_dn = dn_i.d_neighbor_[can_gen];
     int cand_gen_dis = distance_[can_gen];
-    unordered_set<int> v_vertex;
+    vector<bool> v_vertex_cand(n, false);
     for (auto v_i : gen_type_dn)
     {
-        v_vertex.insert(v_i);
+        v_vertex_cand[v_i] = true;
         queue<pair<int, int>> gen_q;
         gen_q.push(make_pair(v_i, 0));
         while (!gen_q.empty())
@@ -2103,7 +2119,6 @@ void HinGraph::search_cand_sn(int i)
             int cur_type = get_vertex_type(vertex_i);
             int cur_dis = distance_[cur_type];
             gen_q.pop();
-            // if (cur_step >= cand_gen_dis)
             if (cur_step >= p_d)
                 continue;
             int nei_edge_start = vertex_offset_[vertex_i];
@@ -2113,10 +2128,10 @@ void HinGraph::search_cand_sn(int i)
                 int nei_type = edges_[j].v_type, nei_id = edges_[j].v_id;
                 if (nei_type == p_query_type)
                 {
-                    if (v_vertex.find(nei_id) != v_vertex.end()) // this neighbor visited before
+                    if (v_vertex_cand[nei_id] == true)
                         continue;
+                    v_vertex_cand[nei_id] = true;
 
-                    v_vertex.insert(nei_id);
                     if (mode_query == 6)
                     {
                         if (nei_id < max_scale_id)
@@ -2127,17 +2142,16 @@ void HinGraph::search_cand_sn(int i)
                 }
                 else
                 {
-                    // if (distance_[nei_type] > cur_dis) // wrong direction
-                    //     continue;
-                    if (v_vertex.find(nei_id) != v_vertex.end()) // this neighbor visited before
+                    if (v_vertex_cand[nei_id] == true)
                         continue;
+                    v_vertex_cand[nei_id] = true;
 
-                    v_vertex.insert(nei_id);
                     gen_q.push(make_pair(nei_id, cur_step + 1));
                 }
             }
         }
     }
+
     sort(cand_sn_list[i].begin(), cand_sn_list[i].end());
     for (int cand_i : cand_sn_list[i])
     {
