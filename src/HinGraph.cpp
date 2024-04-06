@@ -217,13 +217,7 @@ void HinGraph::cs_hin_scan(string query_file, string mode, int scale)
             baseline_query_();
             return;
         }
-        else if (mode == "-qeff")
-        {
-            mode_query = 2;
-            baseline_query_();
-            return;
-        }
-        else if (mode == "-qeffcos")
+        else if (mode == "-qeff" || mode == "-qeffcos" || mode == "-qeffpathsim")
         {
             mode_query = 2;
             baseline_query_();
@@ -387,6 +381,7 @@ void HinGraph::load_query_file(string query_file_path)
     string line;
     ifstream query_file = open_file_fstream(query_file_path);
     int lineCount = 0;
+    int key_number = 0;
     random_query = false;
     query_pathsim = false;
     while (getline(query_file, line))
@@ -469,6 +464,22 @@ void HinGraph::load_query_file(string query_file_path)
                     query_pathsim = true;
                     break;
                 }
+                else if (key == -3 && value > 0)
+                {
+                    unit_epsilon = true;
+                    unit_epsilon_value = value;
+                    query_pathsim = true;
+                    cout << "Use the unit epsilon vector and eval Pathsim" << endl;
+                    break;
+                }
+                else if (key == -4 && value > 0)
+                {
+                    query_pathsim = true;
+                    key_number = int(value);
+                    cout << "Use the special epsilon vector and eval Pathsim" << endl;
+                    break;
+                }
+
                 else
                     type_epsilon[key] = value;
             }
@@ -490,6 +501,20 @@ void HinGraph::load_query_file(string query_file_path)
         }
         lineCount++;
     }
+    if (key_number > 0)
+    {
+        string key_line;
+        for (int i = 0; i < key_number; i++)
+        {
+            getline(query_file, key_line);
+            istringstream iss2(key_line);
+            int key;
+            double value;
+            iss2 >> key >> value;
+            type_epsilon[key] = value;
+        }
+    }
+
     if (query_pathsim == true)
     {
         int path_num;
@@ -862,6 +887,12 @@ void HinGraph::baseline_query_()
     vector<double> density_all(1000, 0);
     vector<double> cc_all(1000, 0);
     vector<double> sim_all(1000, 0);
+    vector<double> pathsim_all(1000, 0);
+    if (option_ == "-qeffpathsim")
+    {
+        path_utils.initial_metapaths(metapath_vecs);
+        path_utils.initial_query_vertex(num_query_type_);
+    }
 
     vector<long> time_cost(query_node_num, 0);
     for (int i = 0; i < query_node_num && i < query_node_list.size(); i++)
@@ -904,16 +935,16 @@ void HinGraph::baseline_query_()
         all_time += cost_time;
         time_cost[i] = cost_time;
         print_result(false, cost_time);
-        if (option_ == "-qeff" || option_ == "-qeffcos")
+        if (option_ == "-qeff" || option_ == "-qeffcos" || option_ == "-qeffpathsim")
             online_effective_result(i, vertex_num_all, core_num_all, diameter_all,
-                                    density_all, cc_all, sim_all);
+                                    density_all, cc_all, sim_all, pathsim_all);
     }
     string str1 = "finish query " + to_string(query_node_num) + " times, use time:";
     Timer::PrintTime(str1, all_time);
-    if (option_ == "-qeff" || option_ == "-qeffcos")
+    if (option_ == "-qeff" || option_ == "-qeffcos" || option_ == "-qeffpathsim")
     {
         long vertex_num_ = 0, d_ = 0, core_num_ = 0;
-        double den_ = 0.0, cc_ = 0.0, sim_ = 0.0;
+        double den_ = 0.0, cc_ = 0.0, sim_ = 0.0, pathsim_ = 0.0;
         int com_num = 0;
         for (int i = 0; i < query_node_num && i < query_node_list.size(); i++)
         {
@@ -926,6 +957,7 @@ void HinGraph::baseline_query_()
             den_ += density_all[i];
             cc_ += cc_all[i];
             sim_ += sim_all[i];
+            pathsim_ += pathsim_all[i];
         }
         cout << "average vertex num is " << double(vertex_num_) / com_num << endl;
         cout << "average core num is " << double(core_num_) / com_num << endl;
@@ -933,6 +965,7 @@ void HinGraph::baseline_query_()
         cout << "average density is " << den_ / com_num << endl;
         cout << "average cc is " << cc_ / com_num << endl;
         cout << "average similarity is " << sim_ / com_num << endl;
+        cout << "average PathSim is " << pathsim_ / com_num << endl;
     }
 }
 
@@ -949,6 +982,7 @@ void HinGraph::baseline_pathsim_query_()
     vector<double> density_all(1000, 0);
     vector<double> cc_all(1000, 0);
     vector<double> sim_all(1000, 0);
+    vector<double> pathsim_all(1000, 0);
 
     vector<long> time_cost(query_node_num, 0);
     for (int i = 0; i < query_node_num && i < query_node_list.size(); i++)
@@ -992,7 +1026,7 @@ void HinGraph::baseline_pathsim_query_()
         time_cost[i] = cost_time;
         print_result(false, cost_time);
         online_effective_result(i, vertex_num_all, core_num_all, diameter_all,
-                                density_all, cc_all, sim_all);
+                                density_all, cc_all, sim_all, pathsim_all);
     }
     int vertex_num_ = 0, d_ = 0, core_num_ = 0;
     double den_ = 0.0, cc_ = 0.0, sim_ = 0.0;
@@ -1410,7 +1444,7 @@ void HinGraph::effectiveness_result(int eff_res_i, vector<int> &vertex_num_all,
 
 void HinGraph::online_effective_result(int eff_res_i, vector<int> &vertex_num_all, vector<int> &core_num_all,
                                        vector<int> &diameter_all, vector<double> &density_all,
-                                       vector<double> &cc_all, vector<double> &sim_all)
+                                       vector<double> &cc_all, vector<double> &sim_all, vector<double> &pathsim_all)
 {
     if (is_in_community[query_i] == false)
         return;
@@ -1520,6 +1554,31 @@ void HinGraph::online_effective_result(int eff_res_i, vector<int> &vertex_num_al
     }
 
     cc_all[eff_res_i] = total_coefficient / num_com;
+
+    // 5. Pathsim
+    if (option_ == "-qeffpathsim")
+    {
+        double pathsim = 0.0;
+        int pathsim_edge = 0;
+        for (const int &com_i : res)
+        {
+            if (cand_core_[com_i] == false)
+                continue;
+            path_utils.search(*this, com_i);
+            for (auto &nei : qn_adj_List[com_i])
+            {
+                pathsim_edge++;
+                int nei_i = nei - query_type_offset_;
+                path_utils.search(*this, nei_i);
+                pathsim += path_utils.compute_avg_pathsim(com_i, nei_i);
+            }
+        }
+        if (pathsim > 0)
+        {
+            cout << pathsim / pathsim_edge << endl;
+            pathsim_all[eff_res_i] = pathsim / pathsim_edge;
+        }
+    }
 }
 
 void HinGraph::index_query_()

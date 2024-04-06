@@ -60,6 +60,9 @@ void PathSim::initial_query_vertex(int q_num)
 
 void PathSim::search(const HinGraph &graph, int query_i)
 {
+    if (path_search_finish_[query_i] == true)
+        return;
+
     int query_vertex_id = query_i + graph.query_type_offset_;
     for (size_t i = 0; i < MetaPathVec.size(); i++)
     {
@@ -82,8 +85,12 @@ void PathSim::search(const HinGraph &graph, int query_i)
             for (int j = nei_edge_start; j < nei_end; j++)
             {
                 int nei_type = graph.edges_[j].v_type, nei_id = graph.edges_[j].v_id, edge_type = graph.edges_[j].edge_type;
-                if (nei_type != cur_p.vertex[cur_step + 1] || edge_type != cur_p.edge[cur_step])
-                    continue; // cur_edge not follow the metapath
+                // if (nei_type != cur_p.vertex[cur_step + 1] || edge_type != cur_p.edge[cur_step])
+                //     continue; // cur_edge not follow the metapath
+                if (nei_type != cur_p.vertex[cur_step + 1])
+                    continue;
+                if ((cur_p.edge[cur_step] != -1) && (edge_type != cur_p.edge[cur_step]))
+                    continue;
                 bfs_path.push(make_pair(nei_id, cur_step + 1));
             }
         }
@@ -103,6 +110,8 @@ double PathSim::compute_avg_pathsim(int i, int j)
         int self_j = query_path_cnt[j][meta_i].ins_path_cnt[j];
         int ins_ij = query_path_cnt[i][meta_i].ins_path_cnt[j];
         double sim = static_cast<double>(2 * ins_ij) / (self_i + self_j);
+        if (self_i == 0 || self_j == 0)
+            continue;
         avg += sim;
         num++;
     }
