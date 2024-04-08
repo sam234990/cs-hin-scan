@@ -6,6 +6,7 @@
 #include "multiLevelQueue.h"
 #include "MuTree.h"
 #include "PathSim.h"
+#include "Others.h"
 #include <vector>
 #include <string>
 #include <bitset>
@@ -72,7 +73,7 @@ struct k_homo_adj_node
 
 class HinGraph
 {
-private:
+public:
     string data_file_name;
     string data_dir_;
     string input_dir_;
@@ -109,6 +110,7 @@ private:
     int cand_gen_type;
     vector<bool> ks_visit;
     vector<bool> is_in_community;
+    vector<bool> community_member;
     vector<bool> res_community;
     multiLevelQueue mlq;
 
@@ -174,7 +176,7 @@ private:
     void index_query_();
     void query_index_scan();
     bool index_judge_core(int i, int k);
-    void select_query_node();
+    void index_cd();
 
     // similarity compute
     bool check_struc_sim(int a, int b);

@@ -166,7 +166,7 @@ void HinGraph::cs_hin_scan(string query_file, string mode, int scale)
         if (mode == "-qidxsel")
         {
             mode_query = 11;
-            select_query_node();
+            index_cd();
             return;
         }
         if (mode == "-qidxSCAN")
@@ -1097,6 +1097,10 @@ void HinGraph::online_cd()
     vector<vector<int>> all_res_com;
     int community_all_num = 0;
 
+    vector<int> c_member_i;
+    c_member_i.reserve(2 * num_query_type_);
+    vector<int> community_number(num_query_type_, 0);
+
     vector<long> time_cost(num_query_type_, 0);
     for (int i = 0; i < num_query_type_; i++)
     {
@@ -1115,24 +1119,49 @@ void HinGraph::online_cd()
         long cost_time = t1.StopTime();
         all_time += cost_time;
         time_cost[i] = cost_time;
-        print_result(false, cost_time);
+        // print_result(false, cost_time);
         is_in_community[query_i] = false;
 
         if (cd_res_ssc.size() > 0)
         {
+            int ssc_id = query_i;
             for (auto com_i : cd_res_ssc)
+            {
                 is_in_community[com_i] = false;
+                community_number[com_i] = ssc_id;
+                community_member[com_i] = true;
+            }
             community_all_num++;
             sort(cd_res_ssc.begin(), cd_res_ssc.end());
+            c_member_i.insert(c_member_i.end(), cd_res_ssc.begin(), cd_res_ssc.end());
             all_res_com.push_back(cd_res_ssc);
             mlq.initial(num_query_type_);
             cd_res_ssc.clear();
             cd_res_ssc.reserve(num_query_type_);
         }
     }
+
+    Others online_others;
+    online_others.compute_hub_outlier_online(*this, c_member_i, community_number);
+
+
+
     cout << all_time << "contain community numbers:" << community_all_num << endl;
     string str1 = "finish online community detection, use time:";
     Timer::PrintTime(str1, all_time);
+
+    int outlier_number = 0, hub_number = 0;
+    for (int i = 0; i < num_query_type_; i++)
+    {
+        if (online_others.outlier[i] == true)
+            outlier_number++;
+        if (online_others.hub[i] == true)
+            hub_number++;
+    }
+    outlier_number -= hub_number;
+    cout << "outlier number: " << outlier_number << "  hub number :" << hub_number << endl;
+
+
 }
 
 void HinGraph::scan_check_cluster_core(int u)
@@ -1721,7 +1750,7 @@ float sum_float_vec(const vector<float> &vec)
     return sum;
 }
 
-void HinGraph::select_query_node()
+void HinGraph::index_cd()
 {
     load_all_similarity();
     load_k_thres_vec(p_mu);
@@ -1746,11 +1775,14 @@ void HinGraph::select_query_node()
     cand_core_.resize(num_query_type_);
     pa.resize(num_query_type_);
     p_rank_.resize(num_query_type_);
+    community_member.resize(num_query_type_);
     int bs_max_ed = -1, bs_max_ed_i;
     unordered_map<int, queue<int>> bin_sort_queue_;
     for (int i = 0; i < num_query_type_; i++)
     {
         cand_core_[i] = false;
+        community_member[i] = false;
+        is_in_community[i] = false;
         pa[i] = i;
         p_rank_[i] = 0;
         similar_degree[i] = 0;
@@ -1769,6 +1801,8 @@ void HinGraph::select_query_node()
     sim_all.reserve(num_query_type_);
     vector<int> edge_all;
     edge_all.reserve(num_query_type_);
+    vector<int> c_member_i;
+    c_member_i.reserve(2 * num_query_type_);
 
     vector<vector<int>> all_res_com;
 
@@ -1889,59 +1923,24 @@ void HinGraph::select_query_node()
         edge_all.push_back(edge_num);
         sim_all.push_back(community_sim);
 
+        int ssc_id = query_i;
         for (auto com_i : res)
         {
-            community_number[com_i] = com_num;
+            community_number[com_i] = ssc_id;
             is_in_community[com_i] = false;
+            community_member[com_i] = true;
         }
         community_all_num++;
         com_size.push_back(com_num);
         sort(res.begin(), res.end());
+        c_member_i.insert(c_member_i.end(), res.begin(), res.end());
         all_res_com.push_back(res);
     }
+
+    Others index_others;
+    index_others.compute_hub_outlier_index(*this, c_member_i, community_number);
+
     t1.StopAndPrint("finished time");
-    // Timer::PrintTime(str1, all_time);
-    // for (int i = 0; i < num_query_type_; i++)
-    // {
-    //     query_i = i;
-    //     for (int i = 0; i < num_query_type_; i++)
-    //         is_in_community[i] = false;
-    //     queue<int> cs_node_q;
-    //     if (index_judge_core(query_i, p_mu) == false)
-    //     {
-    //         community_number[i] = 0;
-    //     }
-    //     else
-    //     {
-    //         cs_node_q.push(query_i);
-    //         while (!cs_node_q.empty())
-    //         { // get all k-core
-    //             int vertex_i = cs_node_q.front();
-    //             cs_node_q.pop();
-    //             for (const auto &i_nei : h_sim[vertex_i])
-    //             {
-    //                 if (is_in_community[i_nei.neighbor_i])
-    //                     continue; // this neighbor has been add to community
-    //                 if (judge_demoinate(i_nei.sim_vec, index_order_epsilon) == false)
-    //                     continue; // this neighbor cannot add to current community
-    //                 if (index_judge_core(i_nei.neighbor_i, p_mu) == false)
-    //                     continue; // this neighbor is not a core
-    //                 cs_node_q.push(i_nei.neighbor_i);
-    //             }
-    //         }
-    //         int num_com = 0;
-    //         for (int i = 0; i < num_query_type_; i++)
-    //         {
-    //             if (is_in_community[i])
-    //                 num_com++;
-    //         }
-    //         community_number[i] = num_com;
-    //     }
-    //     if (i % (num_query_type_ / 10) == 0)
-    //     {
-    //         cout << i << endl;
-    //     }
-    // }
 
     cout << "community_all_number is " << community_all_num << endl;
     int tmp_all = 0;
@@ -1959,6 +1958,18 @@ void HinGraph::select_query_node()
     cout << "avn: vertex number per community is " << aver_size << endl;
     cout << "ave: edge number per community is " << aver_edge << endl;
     cout << "avs: average similarity is " << aver_sim << endl;
+
+    int hub_number = 0, outlier_number = 0;
+
+    for (int i = 0; i < num_query_type_; i++)
+    {
+        if (index_others.outlier[i] == true)
+            outlier_number++;
+        if (index_others.hub[i] == true)
+            hub_number++;
+    }
+    outlier_number -= hub_number;
+    cout << "outlier number: " << outlier_number << "  hub number :" << hub_number << endl;
 
     vector<string> vertex_names(n);
     string vertex_name_file = data_dir_ + "/vertex_name.txt";
