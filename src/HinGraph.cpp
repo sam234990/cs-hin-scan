@@ -1100,6 +1100,10 @@ void HinGraph::online_cd()
     vector<int> c_member_i;
     c_member_i.reserve(2 * num_query_type_);
     vector<int> community_number(num_query_type_, 0);
+    community_member.resize(num_query_type_);
+    for (int i = 0; i < num_query_type_; i++)
+        community_member[i] = false;
+    
 
     vector<long> time_cost(num_query_type_, 0);
     for (int i = 0; i < num_query_type_; i++)
@@ -1141,10 +1145,10 @@ void HinGraph::online_cd()
         }
     }
 
+    cout << "finish find all SSC, start find hub and outlier" << endl;
+
     Others online_others;
     online_others.compute_hub_outlier_online(*this, c_member_i, community_number);
-
-
 
     cout << all_time << "contain community numbers:" << community_all_num << endl;
     string str1 = "finish online community detection, use time:";
@@ -1160,8 +1164,6 @@ void HinGraph::online_cd()
     }
     outlier_number -= hub_number;
     cout << "outlier number: " << outlier_number << "  hub number :" << hub_number << endl;
-
-
 }
 
 void HinGraph::scan_check_cluster_core(int u)
@@ -1936,6 +1938,8 @@ void HinGraph::index_cd()
         c_member_i.insert(c_member_i.end(), res.begin(), res.end());
         all_res_com.push_back(res);
     }
+
+    cout << "finish find all SSC, start find hub and outlier" << endl;
 
     Others index_others;
     index_others.compute_hub_outlier_index(*this, c_member_i, community_number);
