@@ -1123,7 +1123,7 @@ void HinGraph::online_cd()
         long cost_time = t1.StopTime();
         all_time += cost_time;
         time_cost[i] = cost_time;
-        // print_result(false, cost_time);
+        print_result(false, cost_time);
         is_in_community[query_i] = false;
 
         if (cd_res_ssc.size() > 0)
@@ -1569,8 +1569,8 @@ void HinGraph::online_effective_result(int eff_res_i, vector<int> &vertex_num_al
             for (int j = i + 1; j < neighbors; ++j)
             {
                 int j_id = qn_adj_List[com_i][j];
-                if (j_id - query_type_offset_ == com_i)
-                    continue;
+                // if (j_id - query_type_offset_ == com_i)
+                //     continue;
                 if (find(qn_adj_List[nei_i].begin(), qn_adj_List[nei_i].end(), j_id) != qn_adj_List[nei_i].end())
                     num_edges++;
                 num_possible_edges++;
@@ -4106,6 +4106,7 @@ double HinGraph::calJacSim(const vector<int> &vec1, const vector<int> &vec2)
     if (size_a == 0 && size_b == 0)
     {
         return 1.0;
+        // return 0.0;
     }
     else if ((size_a == 0 && size_b != 0) || (size_a != 0 && size_b == 0))
     {
