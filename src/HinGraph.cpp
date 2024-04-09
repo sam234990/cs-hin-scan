@@ -1105,6 +1105,8 @@ void HinGraph::online_cd()
         community_member[i] = false;
     
 
+    Timer t0;
+    t0.Start();
     vector<long> time_cost(num_query_type_, 0);
     for (int i = 0; i < num_query_type_; i++)
     {
@@ -1151,8 +1153,7 @@ void HinGraph::online_cd()
     online_others.compute_hub_outlier_online(*this, c_member_i, community_number);
 
     cout << all_time << "contain community numbers:" << community_all_num << endl;
-    string str1 = "finish online community detection, use time:";
-    Timer::PrintTime(str1, all_time);
+    
 
     int outlier_number = 0, hub_number = 0;
     for (int i = 0; i < num_query_type_; i++)
@@ -1164,6 +1165,10 @@ void HinGraph::online_cd()
     }
     outlier_number -= hub_number;
     cout << "outlier number: " << outlier_number << "  hub number :" << hub_number << endl;
+    
+    string str1 = "finish online community detection, use time:";
+    t0.StopAndPrint(str1);
+    // Timer::PrintTime(str1, all_time);
 }
 
 void HinGraph::scan_check_cluster_core(int u)
