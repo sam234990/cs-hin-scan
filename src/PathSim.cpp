@@ -153,8 +153,8 @@ void PathSim::generate_cand_nei(const HinGraph &graph, int query_i, vector<int> 
     {
         int nei_i = it->first;
         cand_nei[i] = nei_i + graph.query_type_offset_;
-        if (path_search_finish_[i] == false)
-            search(graph, i);
+        if (path_search_finish_[nei_i] == false)
+            search(graph, nei_i);
     }
     sort(cand_nei.begin(), cand_nei.end());
 }

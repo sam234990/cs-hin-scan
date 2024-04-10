@@ -1261,7 +1261,7 @@ void HinGraph::scan_check_cluster_core(int u)
         // search_k_strata(v);
 
         bool sim_res;
-        if (mode_query == 1)
+        if (option_ == "-qpath_sim")
             sim_res = path_utils.judge_pathsim(u, v, pathsim_epsilon);
         else
             sim_res = check_struc_sim(u, v);
