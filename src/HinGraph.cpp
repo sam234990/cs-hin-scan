@@ -1103,7 +1103,6 @@ void HinGraph::online_cd()
     community_member.resize(num_query_type_);
     for (int i = 0; i < num_query_type_; i++)
         community_member[i] = false;
-    
 
     Timer t0;
     t0.Start();
@@ -1153,7 +1152,6 @@ void HinGraph::online_cd()
     online_others.compute_hub_outlier_online(*this, c_member_i, community_number);
 
     cout << all_time << "contain community numbers:" << community_all_num << endl;
-    
 
     int outlier_number = 0, hub_number = 0;
     for (int i = 0; i < num_query_type_; i++)
@@ -1165,7 +1163,7 @@ void HinGraph::online_cd()
     }
     outlier_number -= hub_number;
     cout << "outlier number: " << outlier_number << "  hub number :" << hub_number << endl;
-    
+
     string str1 = "finish online community detection, use time:";
     t0.StopAndPrint(str1);
     // Timer::PrintTime(str1, all_time);
@@ -1574,8 +1572,8 @@ void HinGraph::online_effective_result(int eff_res_i, vector<int> &vertex_num_al
             for (int j = i + 1; j < neighbors; ++j)
             {
                 int j_id = qn_adj_List[com_i][j];
-                // if (j_id - query_type_offset_ == com_i)
-                //     continue;
+                if (j_id - query_type_offset_ == com_i)
+                    continue;
                 if (find(qn_adj_List[nei_i].begin(), qn_adj_List[nei_i].end(), j_id) != qn_adj_List[nei_i].end())
                     num_edges++;
                 num_possible_edges++;
@@ -1757,6 +1755,52 @@ float sum_float_vec(const vector<float> &vec)
     return sum;
 }
 
+double local_clustering_coefficient(const vector<vector<int>> &adj_list, int node)
+{
+    int neighbors = adj_list[node].size();
+    if (neighbors < 2)
+    {
+        return 0.0;
+    }
+
+    int triangle_count = 0;
+    for (int i = 0; i < neighbors; ++i)
+    {
+        int u = adj_list[node][i];
+        for (int j = i + 1; j < neighbors; ++j)
+        {
+            int v = adj_list[node][j];
+            for (int k = 0; k < neighbors; ++k)
+            {
+                if (k != i && k != j && adj_list[u][k] == v)
+                {
+                    triangle_count++;
+                    break;
+                }
+            }
+        }
+    }
+
+    int possible_triangles = neighbors * (neighbors - 1) / 2;
+    if (possible_triangles == 0)
+    {
+        return 0.0;
+    }
+
+    return static_cast<double>(triangle_count) / possible_triangles;
+}
+
+double global_clustering_coefficient(const vector<vector<int>> &adj_list, const vector<int> &res)
+{
+    double total_cc = 0.0;
+    for (int node : res)
+    {
+        total_cc += local_clustering_coefficient(adj_list, node);
+    }
+
+    return total_cc / res.size();
+}
+
 void HinGraph::index_cd()
 {
     load_all_similarity();
@@ -1783,6 +1827,7 @@ void HinGraph::index_cd()
     pa.resize(num_query_type_);
     p_rank_.resize(num_query_type_);
     community_member.resize(num_query_type_);
+    qn_adj_List.resize(num_query_type_);
     int bs_max_ed = -1, bs_max_ed_i;
     unordered_map<int, queue<int>> bin_sort_queue_;
     for (int i = 0; i < num_query_type_; i++)
@@ -1794,7 +1839,8 @@ void HinGraph::index_cd()
         p_rank_[i] = 0;
         similar_degree[i] = 0;
         effective_degree[i] = h_sim[i].size();
-        visited_qtv_[i] = false; // mark each vertex unvisited
+        visited_qtv_[i] = false;                     // mark each vertex unvisited
+        qn_adj_List[i].reserve(initial_vector_size); // for effective analysis
         if (effective_degree[i] >= p_mu)
             bin_sort_queue_[effective_degree[i]].push(i);
         if (effective_degree[i] > bs_max_ed)
@@ -1951,6 +1997,33 @@ void HinGraph::index_cd()
 
     t1.StopAndPrint("finished time");
 
+    double cc_all = 0;
+    int cnt = 0;
+    long core_all = 0;
+    for (const auto &res : all_res_com)
+    {
+        int res_core = 0;
+        for (const auto ci : res)
+        {
+            if (cand_core_[ci] == false)
+                continue;
+            res_core++;
+            for (const auto &i_nei : h_sim[ci])
+            {
+                if (judge_demoinate(i_nei.sim_vec, index_order_epsilon) == false)
+                    continue; // this neighbor cannot add to current community
+                qn_adj_List[ci].push_back(i_nei.neighbor_i);
+                qn_adj_List[i_nei.neighbor_i].push_back(ci);
+            }
+        }
+        core_all += res_core;
+        double res_cc = global_clustering_coefficient(qn_adj_List, res);
+        cc_all += res_cc;
+        cnt++;
+    }
+    cout << "cc: is " << cc_all / cnt << endl;
+    cout << "average core: is " << double(core_all / cnt) << endl;
+
     cout << "community_all_number is " << community_all_num << endl;
     int tmp_all = 0;
     long tmp_edge = 0;
@@ -1979,6 +2052,7 @@ void HinGraph::index_cd()
     }
     outlier_number -= hub_number;
     cout << "outlier number: " << outlier_number << "  hub number :" << hub_number << endl;
+    return;
 
     vector<string> vertex_names(n);
     string vertex_name_file = data_dir_ + "/vertex_name.txt";
