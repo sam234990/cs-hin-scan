@@ -21,6 +21,7 @@
 #include <cmath>
 #include <thread>
 #include <functional>
+#include <random>
 
 struct Vertex_neighbor
 {
@@ -195,7 +196,7 @@ public:
     void dfs(int cur_i, int step, int types, vector<long> &res);
     void effectiveness_result(int i, vector<int> &vertex_num_all,
                               vector<int> &diameter_all, vector<double> &density_all,
-                              vector<double> &pdensity_all,
+                              vector<double> &pdensity_all, vector<double> &cc_all,
                               vector<int> &meta_path_num, vector<int> &eff_id);
     void online_effective_result(int eff_res_i, vector<int> &vertex_num_all, vector<int> &core_num_all,
                                  vector<int> &diameter_all, vector<double> &density_all,

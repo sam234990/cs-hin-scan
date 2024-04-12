@@ -6,6 +6,10 @@ int initial_vector_size = 32;
 
 bool judge_demoinate(const vector<float> &vec1, const vector<float> &vec2);
 
+double local_clustering_coefficient(const vector<vector<int>> &adj_list, int node);
+double global_clustering_coefficient(const vector<vector<int>> &adj_list, const vector<int> &res);
+
+
 void computeIntersection_set(vector<int> &vec1, const vector<int> &vec2)
 {
     vector<int> intersection;
@@ -250,7 +254,7 @@ void HinGraph::construct_index(string query_file, string option, int start_k, in
     string type_index_path = data_index_dir_ + "/" + to_string(p_query_type);
     string all_sim_path = type_index_path + "/sim_graph.txt";
     std::ifstream sim_file(all_sim_path.c_str());
-    if (option == "-fidxscal" || option == "-fidx_DBP" || sim_file.good() == false)
+    if (option == "-fidxscal" || option == "-fidx1scal" || option == "-fidx_DBP" || sim_file.good() == false)
     {
         cout << "start counput the Similarity graph" << endl;
         search_d_neighbor();
@@ -270,11 +274,11 @@ void HinGraph::construct_index(string query_file, string option, int start_k, in
     load_all_similarity();
     t1.StopAndPrint("compute similarity time");
 
-    if (option == "-fidx")
+    if (option == "-fidx" || option == "-fidxscal")
     {
         compute_k_threshold(start_k);
     }
-    else if (option == "-fidx1" || option == "-fidxscal")
+    else if (option == "-fidx1" || option == "-fidx1scal")
     {
         mode_query = 101;
         improve_k_thres(start_k);
@@ -544,7 +548,9 @@ void HinGraph::load_query_file(string query_file_path)
 
             metapath_vecs.push_back(metapath);
             pathsim_epsilon.push_back(epsilon);
+            cout << epsilon << " --";
         }
+        cout << endl;
     }
 
     query_file.close();
@@ -989,7 +995,7 @@ void HinGraph::baseline_pathsim_query_()
     {
         query_i = query_node_list[i];
         reinitialize_query_();
-        path_utils.initial_query_vertex(num_query_type_);
+        // path_utils.initial_query_vertex(num_query_type_);
         is_in_community[query_i] = true;
         Timer t1;
         t1.Start();
@@ -1261,7 +1267,7 @@ void HinGraph::scan_check_cluster_core(int u)
         // search_k_strata(v);
 
         bool sim_res;
-        if (option_ == "-qpath_sim")
+        if (mode_query == 1)
             sim_res = path_utils.judge_pathsim(u, v, pathsim_epsilon);
         else
             sim_res = check_struc_sim(u, v);
@@ -1358,7 +1364,7 @@ void HinGraph::query_index_scan()
 
 void HinGraph::effectiveness_result(int eff_res_i, vector<int> &vertex_num_all,
                                     vector<int> &diameter_all, vector<double> &density_all,
-                                    vector<double> &pdensity_all,
+                                    vector<double> &pdensity_all, vector<double> &cc_all,
                                     vector<int> &meta_path_num, vector<int> &eff_id)
 {
     if (is_in_community[query_i] == false)
@@ -1462,6 +1468,9 @@ void HinGraph::effectiveness_result(int eff_res_i, vector<int> &vertex_num_all,
             break;
     }
     diameter_all[eff_res_i] = diameter;
+
+    double global_cc = global_clustering_coefficient(qn_adj_List, res);
+    cc_all[eff_res_i] = global_cc;
 
     for (const auto &com_i : res)
     {
@@ -1653,6 +1662,7 @@ void HinGraph::index_query_()
     vector<int> diameter_all(1000, 0);
     vector<double> density_all(1000, 0);
     vector<double> pdensity_all(1000, 0);
+    vector<double> cc_all(1000, 0);
     vector<int> meta_path_num(1000, 0);
     vector<int> eff_id;
     eff_id.reserve(1000);
@@ -1708,7 +1718,7 @@ void HinGraph::index_query_()
 
         long cost_time = t1.StopTime();
         if (option_ == "-qidxeff")
-            effectiveness_result(i, vertex_num_all, diameter_all, density_all, pdensity_all, meta_path_num, eff_id);
+            effectiveness_result(i, vertex_num_all, diameter_all, density_all, pdensity_all, cc_all, meta_path_num, eff_id);
         all_time += cost_time;
         time_cost[i] = cost_time;
         print_result(false, cost_time);
@@ -1720,6 +1730,7 @@ void HinGraph::index_query_()
     long vertex_num_ = 0, d_ = 0;
     double den_ = 0.0;
     double pden_ = 0.0;
+    double cc_  =0.0;
     int com_num = 0;
     for (int i = 0; i < query_node_num && i < query_node_list.size(); i++)
     {
@@ -1730,6 +1741,7 @@ void HinGraph::index_query_()
         d_ += diameter_all[i];
         den_ += density_all[i];
         pden_ += pdensity_all[i];
+        cc_ += cc_all[i];
     }
     double average_num = double(vertex_num_) / com_num;
     double average_dia = double(d_) / com_num;
@@ -1792,8 +1804,22 @@ double local_clustering_coefficient(const vector<vector<int>> &adj_list, int nod
 
 double global_clustering_coefficient(const vector<vector<int>> &adj_list, const vector<int> &res)
 {
+    vector<int> sampled_nodes;
+    if (res.size() > 1000)
+    {
+        // 从res中随机采样1000个节点
+        vector<int> indices(res.size());
+        iota(indices.begin(), indices.end(), 0); // 填充0到res.size()-1
+        shuffle(indices.begin(), indices.end(), mt19937{random_device{}()});
+        sampled_nodes.resize(1000);
+        copy(res.begin(), res.begin() + 1000, sampled_nodes.begin());
+    }
+    else
+    {
+        sampled_nodes = res;
+    }
     double total_cc = 0.0;
-    for (int node : res)
+    for (int node : sampled_nodes)
     {
         total_cc += local_clustering_coefficient(adj_list, node);
     }
@@ -1992,19 +2018,23 @@ void HinGraph::index_cd()
 
     cout << "finish find all SSC, start find hub and outlier" << endl;
 
-    Others index_others;
-    index_others.compute_hub_outlier_index(*this, c_member_i, community_number);
+    // Others index_others;
+    // index_others.compute_hub_outlier_index(*this, c_member_i, community_number);
 
     t1.StopAndPrint("finished time");
 
     double cc_all = 0;
     int cnt = 0;
     long core_all = 0;
+    long vertex_all = 0;
     for (const auto &res : all_res_com)
     {
-        int res_core = 0;
+        int res_core = 0, res_ver = 0;
+        if (res.size() < 20)
+            continue;
         for (const auto ci : res)
         {
+            res_ver++;
             if (cand_core_[ci] == false)
                 continue;
             res_core++;
@@ -2019,10 +2049,12 @@ void HinGraph::index_cd()
         core_all += res_core;
         double res_cc = global_clustering_coefficient(qn_adj_List, res);
         cc_all += res_cc;
+        vertex_all += res_ver;
         cnt++;
     }
     cout << "cc: is " << cc_all / cnt << endl;
     cout << "average core: is " << double(core_all / cnt) << endl;
+    cout << "average core: is " << double(vertex_all / cnt) << endl;
 
     cout << "community_all_number is " << community_all_num << endl;
     int tmp_all = 0;
@@ -2043,15 +2075,15 @@ void HinGraph::index_cd()
 
     int hub_number = 0, outlier_number = 0;
 
-    for (int i = 0; i < num_query_type_; i++)
-    {
-        if (index_others.outlier[i] == true)
-            outlier_number++;
-        if (index_others.hub[i] == true)
-            hub_number++;
-    }
-    outlier_number -= hub_number;
-    cout << "outlier number: " << outlier_number << "  hub number :" << hub_number << endl;
+    // for (int i = 0; i < num_query_type_; i++)
+    // {
+    //     if (index_others.outlier[i] == true)
+    //         outlier_number++;
+    //     if (index_others.hub[i] == true)
+    //         hub_number++;
+    // }
+    // outlier_number -= hub_number;
+    // cout << "outlier number: " << outlier_number << "  hub number :" << hub_number << endl;
     return;
 
     vector<string> vertex_names(n);

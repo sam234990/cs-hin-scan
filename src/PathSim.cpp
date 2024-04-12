@@ -110,8 +110,12 @@ double PathSim::compute_avg_pathsim(int i, int j)
         int self_j = query_path_cnt[j][meta_i].ins_path_cnt[j];
         int ins_ij = query_path_cnt[i][meta_i].ins_path_cnt[j];
         double sim = static_cast<double>(2 * ins_ij) / (self_i + self_j);
-        if (self_i == 0 || self_j == 0)
+        if ((self_i == 0) && (self_j == 0))
+        {
+            avg += 1.0;
+            num++;
             continue;
+        }
         avg += sim;
         num++;
     }
@@ -128,6 +132,8 @@ bool PathSim::judge_pathsim(int i, int j, const vector<float> sim_threshold)
         int self_j = query_path_cnt[j][meta_i].ins_path_cnt[j];
         int ins_ij = query_path_cnt[i][meta_i].ins_path_cnt[j];
         float sim = float(2 * ins_ij) / (self_i + self_j);
+        if ((self_i == 0) && (self_j == 0))
+            continue;
         if (sim < sim_threshold[meta_i])
             return false;
     }

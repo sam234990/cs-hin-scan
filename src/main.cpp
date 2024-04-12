@@ -68,7 +68,7 @@ int main(int argc, char const *argv[])
         }
         get_memory_usage();
     }
-    else if (option == "-fidx" || option == "-fidx1" || option == "-fidxmutree" || option == "-fidx_DBP" || option == "-fidxscal")
+    else if (option == "-fidx" || option == "-fidx1" || option == "-fidxmutree" || option == "-fidx_DBP" || option == "-fidxscal" || option == "-fidx1scal")
     { // build index
         if (argc < 4)
         {
@@ -87,7 +87,7 @@ int main(int argc, char const *argv[])
         // Call the function to build the index here
         // ...
         int scale = 100;
-        if (option == "-fidxscal")
+        if (option == "-fidxscal" || option == "-fidx1scal")
         {
             scale = std::stoi(argv[5]);
             cout << "scale test:" << scale << endl;
