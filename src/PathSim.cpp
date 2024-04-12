@@ -51,10 +51,14 @@ void PathSim::initial_query_vertex(int q_num)
     query_num_ = q_num;
     query_path_cnt.resize(q_num);
     path_search_finish_.resize(q_num);
+    p_induce.resize(q_num);
+    p_g.resize(q_num);
     for (int i = 0; i < q_num; i++)
     {
         path_search_finish_[i] = false;
+        p_induce[i] = false;
         query_path_cnt[i] = vector<pathcnt>(path_num);
+        p_g[i] = vector<int>();
     }
 }
 
@@ -98,10 +102,14 @@ void PathSim::search(const HinGraph &graph, int query_i)
     path_search_finish_[query_i] = true;
 }
 
-double PathSim::compute_avg_pathsim(int i, int j)
+double PathSim::compute_avg_pathsim(const HinGraph &graph,int i, int j)
 {
     if (i == j)
         return 1.0;
+    if (path_search_finish_[i] == false)
+        search(graph, i);
+    if (path_search_finish_[j] == false)
+        search(graph, j);
     double avg = 0.0;
     int num = 0;
     for (size_t meta_i = 0; meta_i < MetaPathVec.size(); meta_i++)
@@ -255,4 +263,30 @@ void PathSim::trans_homo_graph(const HinGraph &graph, string meta_path, string s
         degree_file << homo_degree[i] << endl;
     }
     degree_file.close();
+}
+
+vector<int> PathSim::p_induced_graph(const HinGraph &graph, int i)
+{
+    if (path_search_finish_[i] == false)
+        search(graph, i);
+    if (p_induce[i] == true)
+        return p_g[i];
+
+    vector<int> p_neighbor;
+    int reserve_size = 0;
+    for (size_t meta_i = 0; meta_i < MetaPathVec.size(); meta_i++)
+        reserve_size += query_path_cnt[i][meta_i].ins_path_cnt.size();
+    p_neighbor.reserve(reserve_size);
+    for (size_t meta_i = 0; meta_i < MetaPathVec.size(); meta_i++)
+    {
+        for (const auto &pair : query_path_cnt[i][meta_i].ins_path_cnt)
+            p_neighbor.push_back(pair.first);
+    }
+    sort(p_neighbor.begin(), p_neighbor.end());
+    auto last = std::unique(p_neighbor.begin(), p_neighbor.end());
+    p_neighbor.erase(last, p_neighbor.end());
+    p_g[i] = move(p_neighbor);
+    p_induce[i] = true;
+    
+    return p_g[i];
 }

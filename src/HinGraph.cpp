@@ -9,7 +9,6 @@ bool judge_demoinate(const vector<float> &vec1, const vector<float> &vec2);
 double local_clustering_coefficient(const vector<vector<int>> &adj_list, int node);
 double global_clustering_coefficient(const vector<vector<int>> &adj_list, const vector<int> &res);
 
-
 void computeIntersection_set(vector<int> &vec1, const vector<int> &vec2)
 {
     vector<int> intersection;
@@ -276,11 +275,13 @@ void HinGraph::construct_index(string query_file, string option, int start_k, in
 
     if (option == "-fidx" || option == "-fidxscal")
     {
+        cout << "used basic index construction" << endl;
         compute_k_threshold(start_k);
     }
     else if (option == "-fidx1" || option == "-fidx1scal")
     {
         mode_query = 101;
+        cout << "used advanced index construction" << endl;
         improve_k_thres(start_k);
     }
     else if (option == "-fidxmutree")
@@ -1365,7 +1366,8 @@ void HinGraph::query_index_scan()
 void HinGraph::effectiveness_result(int eff_res_i, vector<int> &vertex_num_all,
                                     vector<int> &diameter_all, vector<double> &density_all,
                                     vector<double> &pdensity_all, vector<double> &cc_all,
-                                    vector<int> &meta_path_num, vector<int> &eff_id)
+                                    vector<double> &jac_all, vector<double> &cosine_all,
+                                    vector<double> &pathsim_all, vector<int> &eff_id)
 {
     if (is_in_community[query_i] == false)
         return;
@@ -1406,26 +1408,30 @@ void HinGraph::effectiveness_result(int eff_res_i, vector<int> &vertex_num_all,
             // qn_adj_List[com_i].push_back(i_nei.neighbor_i);
         }
 
-        unordered_set<int> p_nei;
-        for (auto pair : type_epsilon)
+        // unordered_set<int> p_nei;
+        // for (auto pair : type_epsilon)
+        // {
+        //     int type = pair.first;
+        //     vector<int> &dn_i_type_i = dn_adj_List[com_i].d_neighbor_[type];
+        //     if (dn_i_type_i.size() == 0)
+        //         continue;
+        //     for (const auto &d_n_i : dn_i_type_i)
+        //     {
+        //         const vector<int> &induced_qn = t_hop_visited[d_n_i];
+        //         for (const auto &qn_i : induced_qn)
+        //         {
+        //             if (is_in_community[qn_i - query_type_offset_])
+        //                 p_nei.insert(qn_i - query_type_offset_);
+        //         }
+        //     }
+        // }
+        // p_edge_num += p_nei.size();
+        // qn_adj_List[com_i].reserve(p_nei.size());
+        // qn_adj_List[com_i].assign(p_nei.begin(), p_nei.end());
+        if (qn_adj_List[com_i].size() == 0)
         {
-            int type = pair.first;
-            vector<int> &dn_i_type_i = dn_adj_List[com_i].d_neighbor_[type];
-            if (dn_i_type_i.size() == 0)
-                continue;
-            for (const auto &d_n_i : dn_i_type_i)
-            {
-                const vector<int> &induced_qn = t_hop_visited[d_n_i];
-                for (const auto &qn_i : induced_qn)
-                {
-                    if (is_in_community[qn_i - query_type_offset_])
-                        p_nei.insert(qn_i - query_type_offset_);
-                }
-            }
+            qn_adj_List[com_i] = path_utils.p_induced_graph(*this, com_i);
         }
-        p_edge_num += p_nei.size();
-        qn_adj_List[com_i].reserve(p_nei.size());
-        qn_adj_List[com_i].assign(p_nei.begin(), p_nei.end());
     }
     double density = double(edge_num) / num_com;
     double pdensity = double(p_edge_num) / num_com;
@@ -1476,13 +1482,55 @@ void HinGraph::effectiveness_result(int eff_res_i, vector<int> &vertex_num_all,
     {
         qn_adj_List[com_i].clear();
     }
-    random_shuffle(core_ids.begin(), core_ids.end());
-    int id = query_i;
-    auto it = std::find_if(core_ids.begin(), core_ids.end(), [id](int val)
-                           { return val != id; });
-    int core_2 = *it;
-    eff_id.push_back(query_i);
-    eff_id.push_back(core_2);
+
+    double jac = 0, cos = 0, pm = 0;
+    int sim_cnt = 0, sample_cnt = 0;
+    for (const auto &res_i : res)
+    {
+        path_utils.search(*this, res_i);
+        for (const auto &res_j : res)
+        {
+            path_utils.search(*this, res_j);
+            pm += path_utils.compute_avg_pathsim(*this, res_i, res_j);
+            vector<double> sim_jc = avgjac_cosSim(res_i, res_j);
+            jac += sim_jc[0];
+            cos += sim_jc[1];
+            sim_cnt++;
+        }
+    }
+
+    jac_all[eff_res_i] = jac / sim_cnt;
+    cosine_all[eff_res_i] = cos / sim_cnt;
+    pathsim_all[eff_res_i] = pm / sim_cnt;
+
+    int id1 = query_i;
+    int id2 = -1;
+    for (const auto &i_nei : h_sim[id1])
+    {
+        if (is_in_community[i_nei.neighbor_i] == false)
+            continue; // this neighbor not in community
+        if (judge_demoinate(i_nei.sim_vec, index_order_epsilon) == false)
+            continue; // this edge should be ignore
+        if (i_nei.neighbor_i <= id1)
+            continue;
+        id2 = i_nei.neighbor_i;
+        break;
+    }
+    eff_id.push_back(id1);
+    if (id2 == -1)
+    {
+        random_shuffle(core_ids.begin(), core_ids.end());
+        int id = query_i;
+        auto it = std::find_if(core_ids.begin(), core_ids.end(), [id](int val)
+                               { return val != id; });
+        int core_2 = *it;
+        eff_id.push_back(core_2);
+    }
+    else
+    {
+        eff_id.push_back(id2);
+        return;
+    }
 }
 
 void HinGraph::online_effective_result(int eff_res_i, vector<int> &vertex_num_all, vector<int> &core_num_all,
@@ -1519,7 +1567,7 @@ void HinGraph::online_effective_result(int eff_res_i, vector<int> &vertex_num_al
             edge_num++;
             int nei_i = nei - query_type_offset_;
             if (option_ == "-qpath_sim")
-                sim += path_utils.compute_avg_pathsim(com_i, nei_i);
+                sim += path_utils.compute_avg_pathsim(*this, com_i, nei_i);
             else
                 sim += avgStrSim(com_i, nei_i);
         }
@@ -1613,7 +1661,7 @@ void HinGraph::online_effective_result(int eff_res_i, vector<int> &vertex_num_al
                 pathsim_edge++;
                 int nei_i = nei - query_type_offset_;
                 path_utils.search(*this, nei_i);
-                pathsim += path_utils.compute_avg_pathsim(com_i, nei_i);
+                pathsim += path_utils.compute_avg_pathsim(*this, com_i, nei_i);
             }
         }
         if (pathsim > 0)
@@ -1655,6 +1703,9 @@ void HinGraph::index_query_()
     }
     load_d_n();
 
+    path_utils.initial_metapaths(metapath_vecs);
+    path_utils.initial_query_vertex(num_query_type_);
+
     cout << "start index query " << endl;
     long all_time = 0;
     has_community = 0;
@@ -1663,7 +1714,9 @@ void HinGraph::index_query_()
     vector<double> density_all(1000, 0);
     vector<double> pdensity_all(1000, 0);
     vector<double> cc_all(1000, 0);
-    vector<int> meta_path_num(1000, 0);
+    vector<double> jac_all(1000, 0);
+    vector<double> cos_all(1000, 0);
+    vector<double> pathsim_all(1000, 0);
     vector<int> eff_id;
     eff_id.reserve(1000);
 
@@ -1718,7 +1771,8 @@ void HinGraph::index_query_()
 
         long cost_time = t1.StopTime();
         if (option_ == "-qidxeff")
-            effectiveness_result(i, vertex_num_all, diameter_all, density_all, pdensity_all, cc_all, meta_path_num, eff_id);
+            effectiveness_result(i, vertex_num_all, diameter_all, density_all,
+                                 pdensity_all, cc_all, jac_all, cos_all, pathsim_all, eff_id);
         all_time += cost_time;
         time_cost[i] = cost_time;
         print_result(false, cost_time);
@@ -1730,7 +1784,7 @@ void HinGraph::index_query_()
     long vertex_num_ = 0, d_ = 0;
     double den_ = 0.0;
     double pden_ = 0.0;
-    double cc_  =0.0;
+    double cc_ = 0.0, jac_ = 0.0, cos_ = 0.0, pathsim_ = 0.0;
     int com_num = 0;
     for (int i = 0; i < query_node_num && i < query_node_list.size(); i++)
     {
@@ -1742,20 +1796,30 @@ void HinGraph::index_query_()
         den_ += density_all[i];
         pden_ += pdensity_all[i];
         cc_ += cc_all[i];
+        jac_ += jac_all[i];
+        cos_ += cos_all[i];
+        pathsim_ += pathsim_all[i];
     }
     double average_num = double(vertex_num_) / com_num;
     double average_dia = double(d_) / com_num;
     double average_den = den_ / com_num;
     double average_pden = pden_ / com_num;
+    double average_cc = cc_ / com_num;
     cout << "average vertex num is " << average_num << endl;
     cout << "average diameter is " << average_dia << endl;
     cout << "average density is " << average_den << endl;
     cout << "average pdensity is " << average_pden << endl;
+    cout << "average cc is " << average_cc << endl;
+    cout << "average jaccard is " << jac_ / com_num << endl;
+    cout << "average cosine is " << cos_ / com_num << endl;
+    cout << "average pathsim is " << pathsim_ / com_num << endl;
     for (size_t i = 0; i < eff_id.size(); i++)
     {
-        cout << eff_id[i] + query_type_offset_ << " ";
+        cout << eff_id[i] + query_type_offset_;
         if (i % 2 == 1)
             cout << endl;
+        else
+            cout << " ";
     }
 }
 
@@ -2213,6 +2277,8 @@ bool HinGraph::index_judge_core(int i, int k)
 
 void HinGraph::search_k_strata(int i)
 {
+    if (ks_visit[i] == true)
+        return;
     int query_vertex_id = i + query_type_offset_;
     // cout << "query_vertex_id: " << i << " \n";
     queue<pair<int, int>> bfs_path;
@@ -4282,6 +4348,36 @@ double HinGraph::calCosSim(const vector<int> &vec1, const vector<int> &vec2)
     }
     double denominator = sqrt(size_a * size_b);
     return static_cast<double>(intersection) / denominator;
+}
+
+vector<double> HinGraph::avgjac_cosSim(int a, int b)
+{
+    if (a == b)
+    {
+        vector<double> vec(2, 1.0);
+        return vec;
+    }
+    vector<double> vec(2, 0.0);
+
+    double avg_jac = 0.0, avg_cos = 0.0;
+    int type_num = 0;
+    for (const auto &pair : type_epsilon)
+    {
+        int type = pair.first;
+        double type_ep = pair.second;
+        if (type_ep == 0.0)
+            continue;
+        double sim_cos = calCosSim(dn_adj_List[a].d_neighbor_[type], dn_adj_List[b].d_neighbor_[type]);
+        double sim_jac = calJacSim(dn_adj_List[a].d_neighbor_[type], dn_adj_List[b].d_neighbor_[type]);
+        if (sim_cos == 0 || sim_jac == 0)
+            continue;
+        avg_jac += sim_jac;
+        avg_cos += avg_cos;
+        type_num++;
+    }
+    vec[0] = avg_jac / type_num;
+    vec[1] = avg_cos / type_num;
+    return vec;
 }
 
 double HinGraph::avgStrSim(int a, int b)
