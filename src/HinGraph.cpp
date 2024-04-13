@@ -6,7 +6,7 @@ int initial_vector_size = 32;
 
 bool judge_demoinate(const vector<float> &vec1, const vector<float> &vec2);
 
-double local_clustering_coefficient(const vector<vector<int>> &adj_list, int node);
+double local_clustering_coefficient(const vector<vector<int>> &adj_list, const vector<int> &res, int node);
 double global_clustering_coefficient(const vector<vector<int>> &adj_list, const vector<int> &res);
 
 void computeIntersection_set(vector<int> &vec1, const vector<int> &vec2)
@@ -1363,6 +1363,56 @@ void HinGraph::query_index_scan()
     has_community++;
 }
 
+int compute_diameter(const vector<vector<int>> &adj, const vector<int> &res)
+{
+    int diameter = 0;
+    int roundThreshold = 15; // 最多迭代次数，即选择的起始点数量
+    int round = 0;
+    vector<int> dia_res = res;
+    random_shuffle(dia_res.begin(), dia_res.end());
+
+    unordered_set<int> res_set(res.begin(), res.end());
+
+    for (const auto &com_i : dia_res)
+    {
+        int cur_max_hop = 0;
+        unordered_set<int> v_vertex;
+        queue<pair<int, int>> bfs_path;
+        bfs_path.push(make_pair(com_i, 0));
+        v_vertex.insert(com_i);
+
+        while (!bfs_path.empty())
+        {
+            int curVertex_id = bfs_path.front().first;
+            int cur_step = bfs_path.front().second;
+            bfs_path.pop();
+
+            if (cur_step > cur_max_hop)
+                cur_max_hop = cur_step;
+
+            for (const auto &nei_id : adj[curVertex_id])
+            {
+                if (v_vertex.find(nei_id) != v_vertex.end())
+                    continue; // This neighbor has been visited before
+                if (res_set.find(nei_id) == res_set.end())
+                    continue; // This nei not in res
+
+                v_vertex.insert(nei_id);
+                bfs_path.push(make_pair(nei_id, cur_step + 1));
+            }
+        }
+
+        if (cur_max_hop > diameter)
+            diameter = cur_max_hop;
+
+        round++;
+        if (round >= roundThreshold)
+            break;
+    }
+
+    return diameter;
+}
+
 void HinGraph::effectiveness_result(int eff_res_i, vector<int> &vertex_num_all,
                                     vector<int> &diameter_all, vector<double> &density_all,
                                     vector<double> &pdensity_all, vector<double> &cc_all,
@@ -1408,26 +1458,6 @@ void HinGraph::effectiveness_result(int eff_res_i, vector<int> &vertex_num_all,
             // qn_adj_List[com_i].push_back(i_nei.neighbor_i);
         }
 
-        // unordered_set<int> p_nei;
-        // for (auto pair : type_epsilon)
-        // {
-        //     int type = pair.first;
-        //     vector<int> &dn_i_type_i = dn_adj_List[com_i].d_neighbor_[type];
-        //     if (dn_i_type_i.size() == 0)
-        //         continue;
-        //     for (const auto &d_n_i : dn_i_type_i)
-        //     {
-        //         const vector<int> &induced_qn = t_hop_visited[d_n_i];
-        //         for (const auto &qn_i : induced_qn)
-        //         {
-        //             if (is_in_community[qn_i - query_type_offset_])
-        //                 p_nei.insert(qn_i - query_type_offset_);
-        //         }
-        //     }
-        // }
-        // p_edge_num += p_nei.size();
-        // qn_adj_List[com_i].reserve(p_nei.size());
-        // qn_adj_List[com_i].assign(p_nei.begin(), p_nei.end());
         if (qn_adj_List[com_i].size() == 0)
         {
             qn_adj_List[com_i] = path_utils.p_induced_graph(*this, com_i);
@@ -1439,42 +1469,10 @@ void HinGraph::effectiveness_result(int eff_res_i, vector<int> &vertex_num_all,
     pdensity_all[eff_res_i] = pdensity;
 
     // diameter
-    int diameter = 0, round = 0, roundThreshold = 20;
-    vector<int> dia_res = res;
-    random_shuffle(dia_res.begin(), dia_res.end());
-    for (const auto &com_i : dia_res)
-    {
-        int cur_max_hop = 0;
-        unordered_set<int> v_vertex;
-        queue<pair<int, int>> bfs_path;
-        bfs_path.push(make_pair(com_i, 0));
-        v_vertex.insert(com_i);
-
-        while (!bfs_path.empty())
-        {
-            int curVertex_id = bfs_path.front().first, cur_step = bfs_path.front().second;
-            bfs_path.pop();
-            if (cur_step > cur_max_hop)
-                cur_max_hop = cur_step;
-            for (const auto &nei_id : qn_adj_List[curVertex_id])
-            {
-                if (v_vertex.find(nei_id) != v_vertex.end())
-                { // this neighbor visited before
-                    continue;
-                }
-                v_vertex.insert(nei_id);
-                bfs_path.push(make_pair(nei_id, cur_step + 1));
-            }
-        }
-        if (cur_max_hop > diameter)
-            diameter = cur_max_hop;
-
-        round++;
-        if (round >= roundThreshold)
-            break;
-    }
+    int diameter = compute_diameter(qn_adj_List, res);
     diameter_all[eff_res_i] = diameter;
 
+    // cc
     double global_cc = global_clustering_coefficient(qn_adj_List, res);
     cc_all[eff_res_i] = global_cc;
 
@@ -1533,6 +1531,59 @@ void HinGraph::effectiveness_result(int eff_res_i, vector<int> &vertex_num_all,
     }
 }
 
+// unordered_set<int> p_nei;
+// for (auto pair : type_epsilon)
+// {
+//     int type = pair.first;
+//     vector<int> &dn_i_type_i = dn_adj_List[com_i].d_neighbor_[type];
+//     if (dn_i_type_i.size() == 0)
+//         continue;
+//     for (const auto &d_n_i : dn_i_type_i)
+//     {
+//         const vector<int> &induced_qn = t_hop_visited[d_n_i];
+//         for (const auto &qn_i : induced_qn)
+//         {
+//             if (is_in_community[qn_i - query_type_offset_])
+//                 p_nei.insert(qn_i - query_type_offset_);
+//         }
+//     }
+// }
+// p_edge_num += p_nei.size();
+// qn_adj_List[com_i].reserve(p_nei.size());
+// qn_adj_List[com_i].assign(p_nei.begin(), p_nei.end());
+
+// int diameter = 0, round = 0, roundThreshold = 20;
+// vector<int> dia_res = res;
+// random_shuffle(dia_res.begin(), dia_res.end());
+// for (const auto &com_i : dia_res)
+// {
+//     int cur_max_hop = 0;
+//     unordered_set<int> v_vertex;
+//     queue<pair<int, int>> bfs_path;
+//     bfs_path.push(make_pair(com_i, 0));
+//     v_vertex.insert(com_i);
+//     while (!bfs_path.empty())
+//     {
+//         int curVertex_id = bfs_path.front().first, cur_step = bfs_path.front().second;
+//         bfs_path.pop();
+//         if (cur_step > cur_max_hop)
+//             cur_max_hop = cur_step;
+//         for (const auto &nei_id : qn_adj_List[curVertex_id])
+//         {
+//             if (v_vertex.find(nei_id) != v_vertex.end())
+//             { // this neighbor visited before
+//                 continue;
+//             }
+//             v_vertex.insert(nei_id);
+//             bfs_path.push(make_pair(nei_id, cur_step + 1));
+//         }
+//     }
+//     if (cur_max_hop > diameter)
+//         diameter = cur_max_hop;
+//     round++;
+//     if (round >= roundThreshold)
+//         break;
+// }
 void HinGraph::online_effective_result(int eff_res_i, vector<int> &vertex_num_all, vector<int> &core_num_all,
                                        vector<int> &diameter_all, vector<double> &density_all,
                                        vector<double> &cc_all, vector<double> &sim_all, vector<double> &pathsim_all)
@@ -1831,9 +1882,17 @@ float sum_float_vec(const vector<float> &vec)
     return sum;
 }
 
-double local_clustering_coefficient(const vector<vector<int>> &adj_list, int node)
+// double local_clustering_coefficient(const vector<vector<int>> &adj_list, int node, const vector<int> &res)
+double local_clustering_coefficient(const vector<vector<int>> &adj_list, const unordered_set<int> &res, int node)
 {
-    int neighbors = adj_list[node].size();
+    vector<int> common_neighbors;
+    common_neighbors.reserve(adj_list[node].size());
+    for (int neighbor : adj_list[node])
+    {
+        if (res.find(neighbor) != res.end())
+            common_neighbors.push_back(neighbor);
+    }
+    int neighbors = common_neighbors.size();
     if (neighbors < 2)
     {
         return 0.0;
@@ -1842,17 +1901,13 @@ double local_clustering_coefficient(const vector<vector<int>> &adj_list, int nod
     int triangle_count = 0;
     for (int i = 0; i < neighbors; ++i)
     {
-        int u = adj_list[node][i];
+        int u = common_neighbors[i];
         for (int j = i + 1; j < neighbors; ++j)
         {
-            int v = adj_list[node][j];
-            for (int k = 0; k < neighbors; ++k)
+            int v = common_neighbors[j];
+            if (find(adj_list[u].begin(), adj_list[u].end(), v) != adj_list[u].end())
             {
-                if (k != i && k != j && adj_list[u][k] == v)
-                {
-                    triangle_count++;
-                    break;
-                }
+                triangle_count++;
             }
         }
     }
@@ -1869,23 +1924,26 @@ double local_clustering_coefficient(const vector<vector<int>> &adj_list, int nod
 double global_clustering_coefficient(const vector<vector<int>> &adj_list, const vector<int> &res)
 {
     vector<int> sampled_nodes;
-    if (res.size() > 1000)
+    int sample_size = 100;
+    if (res.size() > sample_size)
     {
-        // 从res中随机采样1000个节点
         vector<int> indices(res.size());
-        iota(indices.begin(), indices.end(), 0); // 填充0到res.size()-1
+        iota(indices.begin(), indices.end(), 0);
         shuffle(indices.begin(), indices.end(), mt19937{random_device{}()});
-        sampled_nodes.resize(1000);
-        copy(res.begin(), res.begin() + 1000, sampled_nodes.begin());
+        sampled_nodes.resize(sample_size);
+        copy(res.begin(), res.begin() + sample_size, sampled_nodes.begin());
     }
     else
     {
         sampled_nodes = res;
     }
+
+    unordered_set<int> res_set(res.begin(), res.end());
+
     double total_cc = 0.0;
     for (int node : sampled_nodes)
     {
-        total_cc += local_clustering_coefficient(adj_list, node);
+        total_cc += local_clustering_coefficient(adj_list, res_set, node);
     }
 
     return total_cc / res.size();
@@ -4372,9 +4430,11 @@ vector<double> HinGraph::avgjac_cosSim(int a, int b)
         if (sim_cos == 0 || sim_jac == 0)
             continue;
         avg_jac += sim_jac;
-        avg_cos += avg_cos;
+        avg_cos += sim_cos;
         type_num++;
     }
+    if (type_num == 0)
+        return vec;
     vec[0] = avg_jac / type_num;
     vec[1] = avg_cos / type_num;
     return vec;
