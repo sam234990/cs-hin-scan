@@ -894,6 +894,7 @@ void HinGraph::baseline_query_()
     vector<double> density_all(1000, 0);
     vector<double> cc_all(1000, 0);
     vector<double> sim_all(1000, 0);
+    vector<double> cos_all(1000, 0);
     vector<double> pathsim_all(1000, 0);
     if (option_ == "-qeffpathsim")
     {
@@ -944,7 +945,7 @@ void HinGraph::baseline_query_()
         print_result(false, cost_time);
         if (option_ == "-qeff" || option_ == "-qeffcos" || option_ == "-qeffpathsim")
             online_effective_result(i, vertex_num_all, core_num_all, diameter_all,
-                                    density_all, cc_all, sim_all, pathsim_all);
+                                    density_all, cc_all, sim_all, cos_all, pathsim_all);
     }
     string str1 = "finish query " + to_string(query_node_num) + " times, use time:";
     Timer::PrintTime(str1, all_time);
@@ -989,6 +990,7 @@ void HinGraph::baseline_pathsim_query_()
     vector<double> density_all(1000, 0);
     vector<double> cc_all(1000, 0);
     vector<double> sim_all(1000, 0);
+    vector<double> cos_all(1000, 0);
     vector<double> pathsim_all(1000, 0);
 
     vector<long> time_cost(query_node_num, 0);
@@ -1033,10 +1035,11 @@ void HinGraph::baseline_pathsim_query_()
         time_cost[i] = cost_time;
         print_result(false, cost_time);
         online_effective_result(i, vertex_num_all, core_num_all, diameter_all,
-                                density_all, cc_all, sim_all, pathsim_all);
+                                density_all, cc_all, sim_all, cos_all, pathsim_all);
     }
     int vertex_num_ = 0, d_ = 0, core_num_ = 0;
-    double den_ = 0.0, cc_ = 0.0, sim_ = 0.0;
+    double den_ = 0.0, cc_ = 0.0;
+    double jacsim_ = 0.0, cossim_ = 0.0, pathsim_ = 0.0;
     int com_num = 0;
     for (int i = 0; i < query_node_num && i < query_node_list.size(); i++)
     {
@@ -1048,14 +1051,18 @@ void HinGraph::baseline_pathsim_query_()
         d_ += diameter_all[i];
         den_ += density_all[i];
         cc_ += cc_all[i];
-        sim_ += sim_all[i];
+        jacsim_ += sim_all[i];
+        cossim_ += cos_all[i];
+        pathsim_ += pathsim_all[i];
     }
     cout << "average vertex num is " << double(vertex_num_) / com_num << endl;
     cout << "average core num is " << double(core_num_) / com_num << endl;
     cout << "average diameter is " << double(d_) / com_num << endl;
     cout << "average density is " << den_ / com_num << endl;
     cout << "average cc is " << cc_ / com_num << endl;
-    cout << "average similarity is " << sim_ / com_num << endl;
+    cout << "average jac similarity is " << jacsim_ / com_num << endl;
+    cout << "average cos similarity is " << cossim_ / com_num << endl;
+    cout << "average pathsim similarity is " << pathsim_ / com_num << endl;
 }
 
 void HinGraph::online_query_scan()
@@ -1366,7 +1373,7 @@ void HinGraph::query_index_scan()
 int compute_diameter(const vector<vector<int>> &adj, const vector<int> &res)
 {
     int diameter = 0;
-    int roundThreshold = 15; // 最多迭代次数，即选择的起始点数量
+    int roundThreshold = 10; // 最多迭代次数，即选择的起始点数量
     int round = 0;
     vector<int> dia_res = res;
     random_shuffle(dia_res.begin(), dia_res.end());
@@ -1551,7 +1558,6 @@ void HinGraph::effectiveness_result(int eff_res_i, vector<int> &vertex_num_all,
 // p_edge_num += p_nei.size();
 // qn_adj_List[com_i].reserve(p_nei.size());
 // qn_adj_List[com_i].assign(p_nei.begin(), p_nei.end());
-
 // int diameter = 0, round = 0, roundThreshold = 20;
 // vector<int> dia_res = res;
 // random_shuffle(dia_res.begin(), dia_res.end());
@@ -1584,9 +1590,11 @@ void HinGraph::effectiveness_result(int eff_res_i, vector<int> &vertex_num_all,
 //     if (round >= roundThreshold)
 //         break;
 // }
+
 void HinGraph::online_effective_result(int eff_res_i, vector<int> &vertex_num_all, vector<int> &core_num_all,
                                        vector<int> &diameter_all, vector<double> &density_all,
-                                       vector<double> &cc_all, vector<double> &sim_all, vector<double> &pathsim_all)
+                                       vector<double> &cc_all, vector<double> &sim_all,
+                                       vector<double> &cos_all, vector<double> &pathsim_all)
 {
     if (is_in_community[query_i] == false)
         return;
@@ -1613,114 +1621,85 @@ void HinGraph::online_effective_result(int eff_res_i, vector<int> &vertex_num_al
     {
         if (is_in_community[com_i] == false)
             continue;
-        for (auto &nei : qn_adj_List[com_i])
-        {
-            edge_num++;
-            int nei_i = nei - query_type_offset_;
-            if (option_ == "-qpath_sim")
-                sim += path_utils.compute_avg_pathsim(*this, com_i, nei_i);
-            else
-                sim += avgStrSim(com_i, nei_i);
-        }
+        search_k_strata(com_i);
+        qn_adj_List[com_i].clear();
+        qn_adj_List[com_i] = path_utils.p_induced_graph(*this, com_i);
     }
+    cout << "finish induce homo graph" << endl;
     double density = double(edge_num) / num_com;
-    double avg_sim = sim / edge_num;
     density_all[eff_res_i] = density;
-    sim_all[eff_res_i] = avg_sim;
 
     // 3. diameter
-    int diameter = 0, round = 0, roundThreshold = 20;
-    vector<int> dia_res = res;
-    random_shuffle(dia_res.begin(), dia_res.end());
-    for (const auto &com_i : dia_res)
-    {
-        int cur_max_hop = 0;
-        unordered_set<int> v_vertex;
-        queue<pair<int, int>> bfs_path;
-        bfs_path.push(make_pair(com_i, 0));
-        v_vertex.insert(com_i);
-
-        while (!bfs_path.empty())
-        {
-            int cur_i = bfs_path.front().first, cur_step = bfs_path.front().second;
-            bfs_path.pop();
-            if (cur_step > cur_max_hop)
-                cur_max_hop = cur_step;
-            for (auto &nei : qn_adj_List[cur_i])
-            {
-                int nei_i = nei - query_type_offset_;
-                if (v_vertex.find(nei_i) != v_vertex.end()) // this neighbor visited before
-                    continue;
-                v_vertex.insert(nei_i);
-                bfs_path.push(make_pair(nei_i, cur_step + 1));
-            }
-        }
-        if (cur_max_hop > diameter)
-            diameter = cur_max_hop;
-
-        round++;
-        if (round >= roundThreshold)
-            break;
-    }
+    int diameter = compute_diameter(qn_adj_List, res);
     diameter_all[eff_res_i] = diameter;
 
     // 4. clustering coefficient
-    double total_coefficient = 0.0;
-    for (const int &com_i : res)
+    double global_cc = global_clustering_coefficient(qn_adj_List, res);
+    cc_all[eff_res_i] = global_cc;
+
+    for (const auto &com_i : res)
     {
-        int num_edges = 0;
-        int num_possible_edges = 0;
-        int neighbors = qn_adj_List[com_i].size();
+        qn_adj_List[com_i].clear();
+    }
 
-        for (int i = 0; i < neighbors; ++i)
+    double jac = 0, cos = 0, pm = 0;
+    int sim_cnt = 0, sample_cnt = 0;
+    vector<int> sampled_nodes;
+    int sample_size = 100;
+    if (res.size() > sample_size)
+    {
+        vector<int> indices(res.size());
+        iota(indices.begin(), indices.end(), 0);
+        shuffle(indices.begin(), indices.end(), mt19937{random_device{}()});
+        sampled_nodes.resize(sample_size);
+        copy(res.begin(), res.begin() + sample_size, sampled_nodes.begin());
+    }
+    else
+    {
+        sampled_nodes = res;
+    }
+    for (const auto &res_i : sampled_nodes)
+    {
+        path_utils.search(*this, res_i);
+        for (const auto &res_j : res)
         {
-            int nei_i = qn_adj_List[com_i][i] - query_type_offset_;
-            if (nei_i == com_i)
-                continue;
-            for (int j = i + 1; j < neighbors; ++j)
-            {
-                int j_id = qn_adj_List[com_i][j];
-                if (j_id - query_type_offset_ == com_i)
-                    continue;
-                if (find(qn_adj_List[nei_i].begin(), qn_adj_List[nei_i].end(), j_id) != qn_adj_List[nei_i].end())
-                    num_edges++;
-                num_possible_edges++;
-            }
-        }
-
-        if (num_possible_edges != 0)
-        {
-            double tmp = static_cast<double>(num_edges) / num_possible_edges;
-            total_coefficient += tmp;
+            path_utils.search(*this, res_j);
+            pm += path_utils.compute_avg_pathsim(*this, res_i, res_j);
+            vector<double> sim_jc = avgjac_cosSim(res_i, res_j);
+            jac += sim_jc[0];
+            cos += sim_jc[1];
+            sim_cnt++;
         }
     }
 
-    cc_all[eff_res_i] = total_coefficient / num_com;
+    sim_all[eff_res_i] = jac / sim_cnt;
+    cos_all[eff_res_i] = cos / sim_cnt;
+    pathsim_all[eff_res_i] = pm / sim_cnt;
 
-    // 5. Pathsim
-    if (option_ == "-qeffpathsim")
-    {
-        double pathsim = 0.0;
-        int pathsim_edge = 0;
-        for (const int &com_i : res)
-        {
-            if (cand_core_[com_i] == false)
-                continue;
-            path_utils.search(*this, com_i);
-            for (auto &nei : qn_adj_List[com_i])
-            {
-                pathsim_edge++;
-                int nei_i = nei - query_type_offset_;
-                path_utils.search(*this, nei_i);
-                pathsim += path_utils.compute_avg_pathsim(*this, com_i, nei_i);
-            }
-        }
-        if (pathsim > 0)
-        {
-            cout << pathsim / pathsim_edge << endl;
-            pathsim_all[eff_res_i] = pathsim / pathsim_edge;
-        }
-    }
+    // // 5. Pathsim
+    // if (option_ == "-qeffpathsim")
+    // {
+    //     double pathsim = 0.0;
+    //     int pathsim_edge = 0;
+    //     for (const int &com_i : res)
+    //     {
+    //         if (cand_core_[com_i] == false)
+    //             continue;
+    //         path_utils.search(*this, com_i);
+    //         for (auto &nei : qn_adj_List[com_i])
+    //         {
+    //             pathsim_edge++;
+    //             int nei_i = nei - query_type_offset_;
+    //             path_utils.search(*this, nei_i);
+    //             pathsim += path_utils.compute_avg_pathsim(*this, com_i, nei_i);
+    //         }
+    //     }
+    //     if (pathsim > 0)
+    //     {
+    //         cout << pathsim / pathsim_edge << endl;
+    //         pathsim_all[eff_res_i] = pathsim / pathsim_edge;
+    //     }
+    // }
 }
 
 void HinGraph::index_query_()
@@ -4416,6 +4395,8 @@ vector<double> HinGraph::avgjac_cosSim(int a, int b)
         return vec;
     }
     vector<double> vec(2, 0.0);
+    search_k_strata(a);
+    search_k_strata(b);
 
     double avg_jac = 0.0, avg_cos = 0.0;
     int type_num = 0;
