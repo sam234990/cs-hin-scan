@@ -464,8 +464,10 @@ void HinGraph::load_query_file(string query_file_path)
                     cout << "Use the unit epsilon vector" << endl;
                     break;
                 }
-                else if (key == -2 && value == 0)
+                else if (key == -2 && value > 0)
                 {
+                    unit_epsilon = true;
+                    unit_epsilon_value = value;
                     query_pathsim = true;
                     break;
                 }
@@ -997,7 +999,24 @@ void HinGraph::baseline_pathsim_query_()
     for (int i = 0; i < query_node_num && i < query_node_list.size(); i++)
     {
         query_i = query_node_list[i];
-        reinitialize_query_();
+        // reinitialize_query_();
+        for (int i = 0; i < num_query_type_; i++)
+        {
+            qn_adj_List[i] = vector<int>();
+            qn_adj_List[i].reserve(initial_vector_size);
+            cand_sn_list[i] = vector<int>();
+            cand_sn_list[i].reserve(initial_vector_size);
+            non_sn_list[i] = vector<int>();
+            non_sn_list[i].reserve(initial_vector_size);
+            visited_qtv_[i] = false;
+            // ks_visit[i] = false;
+            is_in_community[i] = false;
+            res_community[i] = false;
+            similar_degree[i] = 0;
+            effective_degree[i] = 0;
+            cand_core_[i] = false;
+        }
+        mlq.initial(num_query_type_);
         // path_utils.initial_query_vertex(num_query_type_);
         is_in_community[query_i] = true;
         Timer t1;
@@ -1422,7 +1441,7 @@ int compute_diameter(const vector<vector<int>> &adj, const vector<int> &res)
 
 void HinGraph::effectiveness_result(int eff_res_i, vector<int> &vertex_num_all,
                                     vector<int> &diameter_all, vector<double> &density_all,
-                                    vector<double> &pdensity_all, vector<double> &cc_all,
+                                    vector<int> &core_num_all, vector<double> &cc_all,
                                     vector<double> &jac_all, vector<double> &cosine_all,
                                     vector<double> &pathsim_all, vector<int> &eff_id)
 {
@@ -1443,7 +1462,6 @@ void HinGraph::effectiveness_result(int eff_res_i, vector<int> &vertex_num_all,
     // density
     vector<int> core_ids;
     core_ids.reserve(num_com);
-    vertex_num_all[eff_res_i] = num_com;
     long p_edge_num = 0;
     for (const auto &com_i : res)
     {
@@ -1473,7 +1491,9 @@ void HinGraph::effectiveness_result(int eff_res_i, vector<int> &vertex_num_all,
     double density = double(edge_num) / num_com;
     double pdensity = double(p_edge_num) / num_com;
     density_all[eff_res_i] = density;
-    pdensity_all[eff_res_i] = pdensity;
+    vertex_num_all[eff_res_i] = num_com;
+    core_num_all[eff_res_i] = core_num;
+    // pdensity_all[eff_res_i] = pdensity;
 
     // diameter
     int diameter = compute_diameter(qn_adj_List, res);
@@ -1490,7 +1510,21 @@ void HinGraph::effectiveness_result(int eff_res_i, vector<int> &vertex_num_all,
 
     double jac = 0, cos = 0, pm = 0;
     int sim_cnt = 0, sample_cnt = 0;
-    for (const auto &res_i : res)
+    vector<int> sampled_nodes;
+    int sample_size = 100;
+    if (res.size() > sample_size)
+    {
+        vector<int> indices(res.size());
+        iota(indices.begin(), indices.end(), 0);
+        shuffle(indices.begin(), indices.end(), mt19937{random_device{}()});
+        sampled_nodes.resize(sample_size);
+        copy(res.begin(), res.begin() + sample_size, sampled_nodes.begin());
+    }
+    else
+    {
+        sampled_nodes = res;
+    }
+    for (const auto &res_i : sampled_nodes)
     {
         path_utils.search(*this, res_i);
         for (const auto &res_j : res)
@@ -1740,6 +1774,7 @@ void HinGraph::index_query_()
     long all_time = 0;
     has_community = 0;
     vector<int> vertex_num_all(1000, 0);
+    vector<int> core_num_all(1000, 0);
     vector<int> diameter_all(1000, 0);
     vector<double> density_all(1000, 0);
     vector<double> pdensity_all(1000, 0);
@@ -1802,7 +1837,7 @@ void HinGraph::index_query_()
         long cost_time = t1.StopTime();
         if (option_ == "-qidxeff")
             effectiveness_result(i, vertex_num_all, diameter_all, density_all,
-                                 pdensity_all, cc_all, jac_all, cos_all, pathsim_all, eff_id);
+                                 core_num_all, cc_all, jac_all, cos_all, pathsim_all, eff_id);
         all_time += cost_time;
         time_cost[i] = cost_time;
         print_result(false, cost_time);
@@ -1811,7 +1846,7 @@ void HinGraph::index_query_()
     Timer::PrintTime(str1, all_time);
     cout << has_community << endl;
 
-    long vertex_num_ = 0, d_ = 0;
+    long vertex_num_ = 0, d_ = 0, core_ = 0;
     double den_ = 0.0;
     double pden_ = 0.0;
     double cc_ = 0.0, jac_ = 0.0, cos_ = 0.0, pathsim_ = 0.0;
@@ -1822,6 +1857,7 @@ void HinGraph::index_query_()
             continue;
         com_num++;
         vertex_num_ += vertex_num_all[i];
+        core_ += core_num_all[i];
         d_ += diameter_all[i];
         den_ += density_all[i];
         pden_ += pdensity_all[i];
@@ -1836,6 +1872,7 @@ void HinGraph::index_query_()
     double average_pden = pden_ / com_num;
     double average_cc = cc_ / com_num;
     cout << "average vertex num is " << average_num << endl;
+    cout << "average core num is " << double(core_)/com_num << endl;
     cout << "average diameter is " << average_dia << endl;
     cout << "average density is " << average_den << endl;
     cout << "average pdensity is " << average_pden << endl;
