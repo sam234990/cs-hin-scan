@@ -29,5 +29,12 @@ $ ./hin_sscs -q ../dataset/amazon ./query_1
 ```
 
 ## Usage instructions
+To run the code, please refer to the help: 
 ```sh
 $ ./hin_sscs --help
+```
+
+For query file format, please refer to the help_query: 
+```sh
+$ ./hin_sscs -help_query
+```
