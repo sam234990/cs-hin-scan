@@ -1844,7 +1844,10 @@ void HinGraph::index_query_()
     }
     string str1 = "finish query " + to_string(query_node_num) + " times, use time:";
     Timer::PrintTime(str1, all_time);
-    cout << has_community << endl;
+    cout << "the number of search community:" << has_community << endl;
+
+    if (option_ == "qidx")
+        return;
 
     long vertex_num_ = 0, d_ = 0, core_ = 0;
     double den_ = 0.0;
@@ -1985,10 +1988,9 @@ void HinGraph::index_cd()
         }
         index_order_epsilon[i] = type_epsilon[type_i];
     }
-    
+
     path_utils.initial_metapaths(metapath_vecs);
     path_utils.initial_query_vertex(num_query_type_);
-
 
     vector<int> community_number(num_query_type_, 0);
     cand_core_.resize(num_query_type_);
@@ -2181,13 +2183,6 @@ void HinGraph::index_cd()
             if (cand_core_[ci] == false)
                 continue;
             res_core++;
-            // for (const auto &i_nei : h_sim[ci])
-            // {
-            //     if (judge_demoinate(i_nei.sim_vec, index_order_epsilon) == false)
-            //         continue; // this neighbor cannot add to current community
-            //     qn_adj_List[ci].push_back(i_nei.neighbor_i);
-            //     qn_adj_List[i_nei.neighbor_i].push_back(ci);
-            // }
 
             if (qn_adj_List[ci].size() == 0)
             {

@@ -8,9 +8,11 @@ int main(int argc, char const *argv[])
         cerr << "Invalid number of arguments." << endl;
         cerr << "Usage: \n"
              << argv[0] << " -f <input_path> <output_path> \n"
-             << argv[0] << " -q <input> <query_file> [-o <output_path>]\n"
-             << argv[0] << " -q[0-9] <input> <query_file> [-o <output_path>]"
-             << endl;
+             << argv[0] << " -q[qcdSCAN | qscal] <input> <query_file> [-o <output_path>] [scale]\n"
+             << argv[0] << " -qidx[qidx] <input> <query_file> [-o <output_path>] [scale]\n"
+             << argv[0] << " -fidx[fidx1 | fidxscal] <input> <output_path> [scale]\n"
+             << argv[0] << " -meta <input> type\n"
+             << argv[0] << " -transhomo <input> <query_file> -o <output_path> \n";
         return 1;
     }
 
@@ -68,7 +70,7 @@ int main(int argc, char const *argv[])
         }
         get_memory_usage();
     }
-    else if (option == "-fidx" || option == "-fidx1" || option == "-fidxmutree" || option == "-fidx_DBP" || option == "-fidxscal" || option == "-fidx1scal")
+    else if (option == "-fidx" || option == "-fidx1" || option == "-fidxscal" || option == "-fidx1scal")
     { // build index
         if (argc < 4)
         {
