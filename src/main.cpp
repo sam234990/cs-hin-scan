@@ -61,7 +61,7 @@ int main(int argc, char const *argv[])
         }
         string input_path = argv[2];
         string query_file = argv[3];
-        string output_path = ""; // 默认为空
+        string output_path = ""; 
         int scale = 100;
         if (option == "-qidxscal" || option == "-qscal")
         {

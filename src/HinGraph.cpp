@@ -573,7 +573,6 @@ void HinGraph::load_query_file(string query_file_path)
         }
     }
 
-    // 输出读取结果
     cout << "mu: " << p_mu << endl;
     cout << "distance: " << p_d << endl;
     cout << "query_type: " << p_query_type << " query_node_num: " << query_node_num << endl;
@@ -1148,8 +1147,6 @@ void HinGraph::online_cd()
 
         is_in_community[query_i] = true;
 
-        // if (i == 822)
-        // cout << i << endl;
         Timer t1;
         t1.Start();
         online_query_scan();
@@ -1572,58 +1569,6 @@ void HinGraph::effectiveness_result(int eff_res_i, vector<int> &vertex_num_all,
     }
 }
 
-// unordered_set<int> p_nei;
-// for (auto pair : type_epsilon)
-// {
-//     int type = pair.first;
-//     vector<int> &dn_i_type_i = dn_adj_List[com_i].d_neighbor_[type];
-//     if (dn_i_type_i.size() == 0)
-//         continue;
-//     for (const auto &d_n_i : dn_i_type_i)
-//     {
-//         const vector<int> &induced_qn = t_hop_visited[d_n_i];
-//         for (const auto &qn_i : induced_qn)
-//         {
-//             if (is_in_community[qn_i - query_type_offset_])
-//                 p_nei.insert(qn_i - query_type_offset_);
-//         }
-//     }
-// }
-// p_edge_num += p_nei.size();
-// qn_adj_List[com_i].reserve(p_nei.size());
-// qn_adj_List[com_i].assign(p_nei.begin(), p_nei.end());
-// int diameter = 0, round = 0, roundThreshold = 20;
-// vector<int> dia_res = res;
-// random_shuffle(dia_res.begin(), dia_res.end());
-// for (const auto &com_i : dia_res)
-// {
-//     int cur_max_hop = 0;
-//     unordered_set<int> v_vertex;
-//     queue<pair<int, int>> bfs_path;
-//     bfs_path.push(make_pair(com_i, 0));
-//     v_vertex.insert(com_i);
-//     while (!bfs_path.empty())
-//     {
-//         int curVertex_id = bfs_path.front().first, cur_step = bfs_path.front().second;
-//         bfs_path.pop();
-//         if (cur_step > cur_max_hop)
-//             cur_max_hop = cur_step;
-//         for (const auto &nei_id : qn_adj_List[curVertex_id])
-//         {
-//             if (v_vertex.find(nei_id) != v_vertex.end())
-//             { // this neighbor visited before
-//                 continue;
-//             }
-//             v_vertex.insert(nei_id);
-//             bfs_path.push(make_pair(nei_id, cur_step + 1));
-//         }
-//     }
-//     if (cur_max_hop > diameter)
-//         diameter = cur_max_hop;
-//     round++;
-//     if (round >= roundThreshold)
-//         break;
-// }
 
 void HinGraph::online_effective_result(int eff_res_i, vector<int> &vertex_num_all, vector<int> &core_num_all,
                                        vector<int> &diameter_all, vector<double> &density_all,
@@ -1710,30 +1655,6 @@ void HinGraph::online_effective_result(int eff_res_i, vector<int> &vertex_num_al
     cos_all[eff_res_i] = cos / sim_cnt;
     pathsim_all[eff_res_i] = pm / sim_cnt;
 
-    // // 5. Pathsim
-    // if (option_ == "-qeffpathsim")
-    // {
-    //     double pathsim = 0.0;
-    //     int pathsim_edge = 0;
-    //     for (const int &com_i : res)
-    //     {
-    //         if (cand_core_[com_i] == false)
-    //             continue;
-    //         path_utils.search(*this, com_i);
-    //         for (auto &nei : qn_adj_List[com_i])
-    //         {
-    //             pathsim_edge++;
-    //             int nei_i = nei - query_type_offset_;
-    //             path_utils.search(*this, nei_i);
-    //             pathsim += path_utils.compute_avg_pathsim(*this, com_i, nei_i);
-    //         }
-    //     }
-    //     if (pathsim > 0)
-    //     {
-    //         cout << pathsim / pathsim_edge << endl;
-    //         pathsim_all[eff_res_i] = pathsim / pathsim_edge;
-    //     }
-    // }
 }
 
 void HinGraph::index_query_()
@@ -1901,7 +1822,6 @@ float sum_float_vec(const vector<float> &vec)
     return sum;
 }
 
-// double local_clustering_coefficient(const vector<vector<int>> &adj_list, int node, const vector<int> &res)
 double local_clustering_coefficient(const vector<vector<int>> &adj_list, const unordered_set<int> &res, int node)
 {
     vector<int> common_neighbors;
@@ -3158,8 +3078,6 @@ void HinGraph::compute_connect_k_core(int k, const vector<float> &fix_type, int 
     {
         if (last_vertex[i] == false) // this vertex has not been a core in current graph
             continue;
-        // if (i == 2107)
-        //     int error = 10;
 
         vector<Nei_similarity> tmp_sim;
         tmp_sim.reserve(h_sim[i].size());
@@ -3209,8 +3127,6 @@ void HinGraph::compute_connect_k_core(int k, const vector<float> &fix_type, int 
     {
         if (community_vertex[i] == false)
             continue; // not core vertex
-        // if (i == 2107)
-        //     int error = 10;
         k_homo_graph[i].clear();
         k_homo_graph[i].reserve(coreNum[i]);
         vector<Nei_similarity> tmp_sim;

@@ -452,11 +452,11 @@ int utils::getLineCount(string &filename)
 	int lineCount = 0;
 	string line;
 	while (getline(file, line))
-	{ // 逐行读取文件内容
+	{ 
 		lineCount++;
 	}
 
-	file.close(); // 关闭文件
+	file.close(); 
 	return lineCount;
 }
 
