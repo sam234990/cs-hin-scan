@@ -9,14 +9,14 @@ $ make clean
 $ make
 ```
 
-## process the graph
+## Process the graph
 ```sh
 $ cd run
 $ ./hin_sscs -f {input_directory} {outpout_directory}
 ```
 
 
-## run the code
+## Run the code
 ```sh
 $ cd run
 $ ./hin_sscs {option} {input_directory} {query_file}
@@ -28,6 +28,6 @@ $ cd run
 $ ./hin_sscs -q ../dataset/amazon ./query_1
 ```
 
-## Usage Instructions
+## Usage instructions
 ```sh
 $ ./hin_sscs --help

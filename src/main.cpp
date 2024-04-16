@@ -5,6 +5,27 @@ int main(int argc, char const *argv[])
 {
     if (argc < 4)
     {
+        if (argc == 2)
+        {
+            string option = argv[1];
+            if (option == "-help_query")
+            {
+                string query_schema = "Here is the schema of query file in each line:\n\n"
+                                      "mu -- parameter mu"
+                                      "k -- k-multi-strata \n"
+                                      "qt numq -- query type & the number of query vertices\n"
+                                      "vertices [-1 | -2] -- the numq query vertices  [random query(-1) | selected_file(-2)] \n"
+                                      "dimension(type) value [-1 | -2 | -3 | -4] -- vector of epsilon in Jaccard measure or  other methods:\n"
+                                      "\t unit value (-1)\n"
+                                      "\t PathSim(-2)\n"
+                                      "\t Jaccard query with PathSim metric(-3)\n"
+                                      "\t PathSim query with Jaccard metric(-4)\n"
+                                      "\n For other query instruction, please refer to function  load_query_file()  in HinGraph.cpp\n";
+
+                cout << query_schema << endl;
+                return 1;
+            }
+        }
         cerr << "Invalid number of arguments." << endl;
         cerr << "Usage: \n"
              << argv[0] << " -f <input_path> <output_path> \n"
