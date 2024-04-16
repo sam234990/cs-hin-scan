@@ -345,7 +345,7 @@ void HinGraph::find_meta(int type)
             break;
     }
     cout << "start save meta-path" << endl;
-    string save_dir = "/home/wangshu/graphs_a/cs_hin_scan/check_result/Freebase";
+    string save_dir = "xxx";
     check_dir_path(save_dir);
     string save_path = save_dir + "/" + to_string(p_query_type) + ".txt";
     ofstream save_file = open_file_ofstream(save_path);
@@ -1392,7 +1392,7 @@ void HinGraph::query_index_scan()
 int compute_diameter(const vector<vector<int>> &adj, const vector<int> &res)
 {
     int diameter = 0;
-    int roundThreshold = 10; // 最多迭代次数，即选择的起始点数量
+    int roundThreshold = 10;
     int round = 0;
     vector<int> dia_res = res;
     random_shuffle(dia_res.begin(), dia_res.end());
@@ -1872,7 +1872,7 @@ void HinGraph::index_query_()
     double average_pden = pden_ / com_num;
     double average_cc = cc_ / com_num;
     cout << "average vertex num is " << average_num << endl;
-    cout << "average core num is " << double(core_)/com_num << endl;
+    cout << "average core num is " << double(core_) / com_num << endl;
     cout << "average diameter is " << average_dia << endl;
     cout << "average density is " << average_den << endl;
     cout << "average pdensity is " << average_pden << endl;
@@ -1985,6 +1985,10 @@ void HinGraph::index_cd()
         }
         index_order_epsilon[i] = type_epsilon[type_i];
     }
+    
+    path_utils.initial_metapaths(metapath_vecs);
+    path_utils.initial_query_vertex(num_query_type_);
+
 
     vector<int> community_number(num_query_type_, 0);
     cand_core_.resize(num_query_type_);
@@ -2156,8 +2160,8 @@ void HinGraph::index_cd()
 
     cout << "finish find all SSC, start find hub and outlier" << endl;
 
-    // Others index_others;
-    // index_others.compute_hub_outlier_index(*this, c_member_i, community_number);
+    Others index_others;
+    index_others.compute_hub_outlier_index(*this, c_member_i, community_number);
 
     t1.StopAndPrint("finished time");
 
@@ -2165,6 +2169,7 @@ void HinGraph::index_cd()
     int cnt = 0;
     long core_all = 0;
     long vertex_all = 0;
+    long dia_all = 0;
     for (const auto &res : all_res_com)
     {
         int res_core = 0, res_ver = 0;
@@ -2176,24 +2181,32 @@ void HinGraph::index_cd()
             if (cand_core_[ci] == false)
                 continue;
             res_core++;
-            for (const auto &i_nei : h_sim[ci])
+            // for (const auto &i_nei : h_sim[ci])
+            // {
+            //     if (judge_demoinate(i_nei.sim_vec, index_order_epsilon) == false)
+            //         continue; // this neighbor cannot add to current community
+            //     qn_adj_List[ci].push_back(i_nei.neighbor_i);
+            //     qn_adj_List[i_nei.neighbor_i].push_back(ci);
+            // }
+
+            if (qn_adj_List[ci].size() == 0)
             {
-                if (judge_demoinate(i_nei.sim_vec, index_order_epsilon) == false)
-                    continue; // this neighbor cannot add to current community
-                qn_adj_List[ci].push_back(i_nei.neighbor_i);
-                qn_adj_List[i_nei.neighbor_i].push_back(ci);
+                qn_adj_List[ci] = path_utils.p_induced_graph(*this, ci);
             }
         }
         core_all += res_core;
         double res_cc = global_clustering_coefficient(qn_adj_List, res);
         cc_all += res_cc;
         vertex_all += res_ver;
+        int dia = compute_diameter(qn_adj_List, res);
+        if (dia > 0)
+            dia_all += dia;
         cnt++;
     }
     cout << "cc: is " << cc_all / cnt << endl;
+    cout << "dia: is " << dia_all / cnt << endl;
     cout << "average core: is " << double(core_all / cnt) << endl;
-    cout << "average core: is " << double(vertex_all / cnt) << endl;
-
+    cout << "average vertex: is " << double(vertex_all / cnt) << endl;
     cout << "community_all_number is " << community_all_num << endl;
     int tmp_all = 0;
     long tmp_edge = 0;
@@ -2213,15 +2226,15 @@ void HinGraph::index_cd()
 
     int hub_number = 0, outlier_number = 0;
 
-    // for (int i = 0; i < num_query_type_; i++)
-    // {
-    //     if (index_others.outlier[i] == true)
-    //         outlier_number++;
-    //     if (index_others.hub[i] == true)
-    //         hub_number++;
-    // }
-    // outlier_number -= hub_number;
-    // cout << "outlier number: " << outlier_number << "  hub number :" << hub_number << endl;
+    for (int i = 0; i < num_query_type_; i++)
+    {
+        if (index_others.outlier[i] == true)
+            outlier_number++;
+        if (index_others.hub[i] == true)
+            hub_number++;
+    }
+    outlier_number -= hub_number;
+    cout << "outlier number: " << outlier_number << "  hub number :" << hub_number << endl;
     return;
 
     vector<string> vertex_names(n);

@@ -225,8 +225,12 @@ void PathSim::trans_homo_graph(const HinGraph &graph, string meta_path, string s
             for (int j = nei_edge_start; j < nei_end; j++)
             {
                 int nei_type = graph.edges_[j].v_type, nei_id = graph.edges_[j].v_id, edge_type = graph.edges_[j].edge_type;
-                if (nei_type != cur_p.vertex[cur_step + 1] || edge_type != cur_p.edge[cur_step])
-                    continue; // cur_edge not follow the metapath
+                // if (nei_type != cur_p.vertex[cur_step + 1] || edge_type != cur_p.edge[cur_step])
+                //     continue; // cur_edge not follow the metapath
+                if (nei_type != cur_p.vertex[cur_step + 1])
+                    continue;
+                if ((cur_p.edge[cur_step] != -1) && (edge_type != cur_p.edge[cur_step]))
+                    continue;
                 bfs_path.push(make_pair(nei_id, cur_step + 1));
             }
         }
