@@ -1569,7 +1569,6 @@ void HinGraph::effectiveness_result(int eff_res_i, vector<int> &vertex_num_all,
     }
 }
 
-
 void HinGraph::online_effective_result(int eff_res_i, vector<int> &vertex_num_all, vector<int> &core_num_all,
                                        vector<int> &diameter_all, vector<double> &density_all,
                                        vector<double> &cc_all, vector<double> &sim_all,
@@ -1654,7 +1653,6 @@ void HinGraph::online_effective_result(int eff_res_i, vector<int> &vertex_num_al
     sim_all[eff_res_i] = jac / sim_cnt;
     cos_all[eff_res_i] = cos / sim_cnt;
     pathsim_all[eff_res_i] = pm / sim_cnt;
-
 }
 
 void HinGraph::index_query_()
@@ -2087,6 +2085,35 @@ void HinGraph::index_cd()
 
     t1.StopAndPrint("finished time");
 
+    cout << "community_all_number is " << community_all_num << endl;
+    cout << "all vertex :" << num_query_type_ << endl;
+    int outlier_number = 0, hub_number = 0;
+    int core_num = 0, community_all = 0;
+    for (const auto &res : all_res_com)
+    {
+        community_all += res.size();
+        for (const auto ci : res)
+        {
+            if (cand_core_[ci] == true)
+                core_num++;
+        }
+    }
+    cout << "all community number: " << community_all << endl;
+    cout << "all core: " << core_num << endl;
+    cout << "all non-core: " << community_all - core_num << endl;
+
+    for (int i = 0; i < num_query_type_; i++)
+    {
+        if (index_others.outlier[i] == true)
+            outlier_number++;
+        if (index_others.hub[i] == true)
+            hub_number++;
+    }
+    cout << "all hub: " << hub_number << endl;
+    cout << "all outlier: " << num_query_type_ - community_all - hub_number << endl;
+    cout << "all outlier 2: " << outlier_number - hub_number << endl;
+    return;
+
     double cc_all = 0;
     int cnt = 0;
     long core_all = 0;
@@ -2095,8 +2122,6 @@ void HinGraph::index_cd()
     for (const auto &res : all_res_com)
     {
         int res_core = 0, res_ver = 0;
-        if (res.size() < 20)
-            continue;
         for (const auto ci : res)
         {
             res_ver++;
@@ -2139,17 +2164,6 @@ void HinGraph::index_cd()
     cout << "ave: edge number per community is " << aver_edge << endl;
     cout << "avs: average similarity is " << aver_sim << endl;
 
-    int hub_number = 0, outlier_number = 0;
-
-    for (int i = 0; i < num_query_type_; i++)
-    {
-        if (index_others.outlier[i] == true)
-            outlier_number++;
-        if (index_others.hub[i] == true)
-            hub_number++;
-    }
-    outlier_number -= hub_number;
-    cout << "outlier number: " << outlier_number << "  hub number :" << hub_number << endl;
     return;
 
     vector<string> vertex_names(n);
