@@ -22,10 +22,12 @@ $ cd run
 $ ./hin_sscs {option} {input_directory} {query_file}
 ```
 
-For example,
+For example, SSCS on ramdom 100 verices on amazon:
+
 ```sh
-$ cd run
-$ ./hin_sscs -q ../dataset/amazon ./query_1
+$ cd run                                    
+$ ./hin_sscs -f ../dataset/amazon ../dataset/amazon  # first, process the graph
+$ ./hin_sscs -q ../dataset/amazon ./query_1.txt  # then, SSCS on amazon
 ```
 
 ## Usage instructions
@@ -38,3 +40,6 @@ For query file format, please refer to the help_query:
 ```sh
 $ ./hin_sscs -help_query
 ```
+
+## Data format
+Please refer to README.txt in /dataset/amazon
