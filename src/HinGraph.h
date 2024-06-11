@@ -234,6 +234,10 @@ public:
     vector<int> pa;                  // pa and rank are used for the disjoint-set data structure
     vector<int> p_rank_;
 
+    // cd result variables
+    vector<vector<int>> all_res_com;
+
+
     // index variables
     vector<MuTree> index_tree;
     PathSim path_utils;

@@ -52,7 +52,7 @@ void Others::compute_hub_outlier_online(const HinGraph &graph, const vector<int>
 {
     vector<bool> visit_mem(graph.num_query_type_, false);
     vector<int> outlier_cid(graph.num_query_type_, OUTLIER_INIT);
-    
+
     hub_cid.reserve(c_member_i.size());
 
     hub.resize(graph.num_query_type_);
@@ -85,6 +85,36 @@ void Others::compute_hub_outlier_online(const HinGraph &graph, const vector<int>
             }
         }
     }
+}
 
+void Others::output_CD_result(const HinGraph &graph, string output_path)
+{
+    string output_file_path = output_path + "/cd" + to_string(graph.p_query_type) + "-mu" + to_string(graph.p_mu);
+    output_file_path += "-" + graph.query_file_name + ".txt";
+    ofstream output_file = open_file_ofstream(output_file_path);
+    cout << "output file name and path: " << output_file_path << endl;
+    cout << "vertex_id -- cluster_id\n";
 
+    for (const auto &res : graph.all_res_com)
+    {
+        int cid = -1;
+        for (const auto ci : res)
+        {
+            if (graph.cand_core_[ci] == true)
+            {
+                cid = ci;
+                break;
+            }
+        }
+        if (cid == -1)
+            continue;
+
+        for (const auto ci : res)
+        {
+            int vertex_id = ci + graph.query_type_offset_;
+            output_file << vertex_id << " " << cid << endl;
+        }
+    }
+
+    output_file.close();
 }

@@ -1945,7 +1945,6 @@ void HinGraph::index_cd()
     vector<int> c_member_i;
     c_member_i.reserve(2 * num_query_type_);
 
-    vector<vector<int>> all_res_com;
 
     Timer t1;
     t1.Start();
@@ -4506,30 +4505,32 @@ void HinGraph::count_core_vertices()
 
 void HinGraph::output_result(string output)
 {
-    string output_file_path = output + "/query_type_" + to_string(p_query_type) + "-mu" + to_string(p_mu);
-    output_file_path += "-" + data_file_name + "-" + query_file_name + "-mode" + to_string(mode_query) + ".txt";
-    ofstream output_file = open_file_ofstream(output_file_path);
-    cout << "output file name and path: " << output_file_path << endl;
-    output_file << "c/n vertex_id -- cluster_id\n";
+    Others output_utils;
+    
+    output_utils.output_CD_result(*this, output);
 
-    for (int i = 0; i < num_query_type_; i++)
-    {
-        int vertex_id = i + query_type_offset_;
-        if (is_in_community[i])
-        {
-            if (cand_core_[i])
-            {
-                output_file << "c " << vertex_id << endl;
-            }
-            else
-            {
-                output_file << "n " << vertex_id << endl;
-            }
-        }
-    }
+    // string output_file_path = output + "/query_type_" + to_string(p_query_type) + "-mu" + to_string(p_mu);
+    // output_file_path += "-" + data_file_name + "-" + query_file_name + "-mode" + to_string(mode_query) + ".txt";
+    // ofstream output_file = open_file_ofstream(output_file_path);
+    // cout << "output file name and path: " << output_file_path << endl;
+    // cout << "c/n vertex_id -- cluster_id\n";
 
-    output_file.close();
-    // fclose(fout);
+    // for (int i = 0; i < num_query_type_; i++)
+    // {
+    //     int vertex_id = i + query_type_offset_;
+    //     if (is_in_community[i])
+    //     {
+    //         if (cand_core_[i])
+    //         {
+    //             output_file << "c " << vertex_id << endl;
+    //         }
+    //         else
+    //         {
+    //             output_file << "n " << vertex_id << endl;
+    //         }
+    //     }
+    // }
+    // output_file.close();
 }
 
 int HinGraph::get_vertex_type(int vertex_id)
