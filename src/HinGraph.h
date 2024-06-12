@@ -241,6 +241,7 @@ public:
     // index variables
     vector<MuTree> index_tree;
     PathSim path_utils;
+    Others o_utils;
 
     HinGraph(string data_dir);
     ~HinGraph();

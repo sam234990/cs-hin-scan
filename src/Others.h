@@ -1,11 +1,13 @@
 #pragma once
 
-#include "HinGraph.h"
+// #include "HinGraph.h"
 #include <vector>
 #include <iostream>
 #include <algorithm>
 
 using namespace std;
+
+class HinGraph;
 
 class Others
 {
@@ -14,6 +16,7 @@ public:
     ~Others();
     vector<bool> outlier;
     vector<bool> hub;
+    vector<bool> community_vertex;
     vector<pair<int, int>> hub_cid;
     
     void compute_hub_outlier_index(const HinGraph &graph, const vector<int> &c_member_i, const vector<int> &community_number);

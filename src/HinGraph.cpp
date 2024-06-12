@@ -1178,17 +1178,17 @@ void HinGraph::online_cd()
 
     cout << "finish find all SSC, start find hub and outlier" << endl;
 
-    Others online_others;
-    online_others.compute_hub_outlier_online(*this, c_member_i, community_number);
+    // Others online_others;
+    o_utils.compute_hub_outlier_online(*this, c_member_i, community_number);
 
     cout << all_time << "contain community numbers:" << community_all_num << endl;
 
     int outlier_number = 0, hub_number = 0;
     for (int i = 0; i < num_query_type_; i++)
     {
-        if (online_others.outlier[i] == true)
+        if (o_utils.outlier[i] == true)
             outlier_number++;
-        if (online_others.hub[i] == true)
+        if (o_utils.hub[i] == true)
             hub_number++;
     }
     outlier_number -= hub_number;
@@ -2079,8 +2079,8 @@ void HinGraph::index_cd()
 
     cout << "finish find all SSC, start find hub and outlier" << endl;
 
-    Others index_others;
-    index_others.compute_hub_outlier_index(*this, c_member_i, community_number);
+    // Others index_others;
+    o_utils.compute_hub_outlier_index(*this, c_member_i, community_number);
 
     t1.StopAndPrint("finished time");
 
@@ -2103,9 +2103,9 @@ void HinGraph::index_cd()
 
     for (int i = 0; i < num_query_type_; i++)
     {
-        if (index_others.outlier[i] == true)
+        if (o_utils.outlier[i] == true)
             outlier_number++;
-        if (index_others.hub[i] == true)
+        if (o_utils.hub[i] == true)
             hub_number++;
     }
     cout << "all hub: " << hub_number << endl;
@@ -4505,9 +4505,9 @@ void HinGraph::count_core_vertices()
 
 void HinGraph::output_result(string output)
 {
-    Others output_utils;
+    // Others output_utils;
     
-    output_utils.output_CD_result(*this, output);
+    o_utils.output_CD_result(*this, output);
 
     // string output_file_path = output + "/query_type_" + to_string(p_query_type) + "-mu" + to_string(p_mu);
     // output_file_path += "-" + data_file_name + "-" + query_file_name + "-mode" + to_string(mode_query) + ".txt";

@@ -94,6 +94,7 @@ void Others::output_CD_result(const HinGraph &graph, string output_path)
     ofstream output_file = open_file_ofstream(output_file_path);
     cout << "output file name and path: " << output_file_path << endl;
     cout << "vertex_id -- cluster_id\n";
+    community_vertex.resize(graph.num_query_type_);
 
     for (const auto &res : graph.all_res_com)
     {
@@ -111,9 +112,20 @@ void Others::output_CD_result(const HinGraph &graph, string output_path)
 
         for (const auto ci : res)
         {
+            community_vertex[ci] = true;
             int vertex_id = ci + graph.query_type_offset_;
             output_file << vertex_id << " " << cid << endl;
         }
+    }
+    for (int i = 0; i < graph.num_query_type_; i++)
+    {
+        if (community_vertex[i] == true)
+            continue;
+        int vertex_id = i + graph.query_type_offset_;
+        if (hub[i] == true)
+            output_file << vertex_id << " h" << endl;
+        else
+            output_file << vertex_id << " o" << endl;
     }
 
     output_file.close();
