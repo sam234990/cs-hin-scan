@@ -1126,7 +1126,6 @@ void HinGraph::online_cd()
     reinitialize_query_();
     cd_res_ssc.clear();
     cd_res_ssc.reserve(num_query_type_);
-    vector<vector<int>> all_res_com;
     int community_all_num = 0;
 
     vector<int> c_member_i;
@@ -1184,6 +1183,20 @@ void HinGraph::online_cd()
     cout << all_time << "contain community numbers:" << community_all_num << endl;
 
     int outlier_number = 0, hub_number = 0;
+    int core_num = 0, community_all = 0;
+    for (const auto &res : all_res_com)
+    {
+        community_all += res.size();
+        for (const auto ci : res)
+        {
+            if (cand_core_[ci] == true)
+                core_num++;
+        }
+    }
+    cout << "all community number: " << community_all << endl;
+    cout << "all core: " << core_num << endl;
+    cout << "all non-core: " << community_all - core_num << endl;
+
     for (int i = 0; i < num_query_type_; i++)
     {
         if (o_utils.outlier[i] == true)
@@ -1191,8 +1204,10 @@ void HinGraph::online_cd()
         if (o_utils.hub[i] == true)
             hub_number++;
     }
-    outlier_number -= hub_number;
-    cout << "outlier number: " << outlier_number << "  hub number :" << hub_number << endl;
+    cout << "all hub: " << hub_number << endl;
+    cout << "all outlier: " << num_query_type_ - community_all - hub_number << endl;
+    cout << "all outlier 2: " << outlier_number - hub_number << endl;
+    return;
 
     string str1 = "finish online community detection, use time:";
     t0.StopAndPrint(str1);
