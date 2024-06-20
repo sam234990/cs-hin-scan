@@ -46,6 +46,15 @@ void Others::compute_hub_outlier_index(const HinGraph &graph, const vector<int> 
             }
         }
     }
+    for (int i = 0; i < graph.num_query_type_; i++)
+    {
+        if (graph.community_member[i] == true)
+            continue;
+        if (hub[i] == true)
+            continue;
+        if (outlier[i] == false)
+            outlier[i] = true;
+    }
 }
 
 void Others::compute_hub_outlier_online(const HinGraph &graph, const vector<int> &c_member_i, const vector<int> &community_number)

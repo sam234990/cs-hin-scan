@@ -1186,24 +1186,24 @@ void HinGraph::online_cd()
     int core_num = 0, community_all = 0;
     for (const auto &res : all_res_com)
     {
-        community_all += res.size();
         for (const auto ci : res)
         {
             if (cand_core_[ci] == true)
                 core_num++;
         }
     }
-    cout << "all community number: " << community_all << endl;
-    cout << "all core: " << core_num << endl;
-    cout << "all non-core: " << community_all - core_num << endl;
-
     for (int i = 0; i < num_query_type_; i++)
     {
+        if(community_member[i] == true)
+            community_all++;
         if (o_utils.outlier[i] == true)
             outlier_number++;
         if (o_utils.hub[i] == true)
             hub_number++;
     }
+    cout << "all community number: " << community_all << endl;
+    cout << "all core: " << core_num << endl;
+    cout << "all non-core: " << community_all - core_num << endl;
     cout << "all hub: " << hub_number << endl;
     cout << "all outlier: " << num_query_type_ - community_all - hub_number << endl;
     cout << "all outlier 2: " << outlier_number - hub_number << endl;
@@ -2105,24 +2105,25 @@ void HinGraph::index_cd()
     int core_num = 0, community_all = 0;
     for (const auto &res : all_res_com)
     {
-        community_all += res.size();
         for (const auto ci : res)
         {
             if (cand_core_[ci] == true)
                 core_num++;
         }
     }
-    cout << "all community number: " << community_all << endl;
-    cout << "all core: " << core_num << endl;
-    cout << "all non-core: " << community_all - core_num << endl;
 
     for (int i = 0; i < num_query_type_; i++)
     {
+        if(community_member[i] == true)
+            community_all++;
         if (o_utils.outlier[i] == true)
             outlier_number++;
         if (o_utils.hub[i] == true)
             hub_number++;
     }
+    cout << "all community number: " << community_all << endl;
+    cout << "all core: " << core_num << endl;
+    cout << "all non-core: " << community_all - core_num << endl;
     cout << "all hub: " << hub_number << endl;
     cout << "all outlier: " << num_query_type_ - community_all - hub_number << endl;
     cout << "all outlier 2: " << outlier_number - hub_number << endl;
