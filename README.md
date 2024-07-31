@@ -43,3 +43,6 @@ $ ./hin_sscs -help_query
 
 ## Data format
 Please refer to README.txt in /dataset/amazon
+
+## DBLP labeled dataset
+Please refer to label_dblp.ipynb for dataset construction and evalute.py for the calculation fo F1-scores.
