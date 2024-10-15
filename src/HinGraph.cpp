@@ -293,6 +293,20 @@ void HinGraph::construct_index(string query_file, string option, int start_k, in
     return;
 }
 
+std::string vector_to_string(const std::vector<int> &vec)
+{
+    std::ostringstream oss;
+    for (size_t i = 0; i < vec.size(); ++i)
+    {
+        oss << vec[i];
+        if (i < vec.size() - 1)
+        {
+            oss << " "; // 使用逗号分隔
+        }
+    }
+    return oss.str();
+}
+
 void HinGraph::find_meta(int type)
 {
     cout << "Start find meta-path" << endl;
@@ -304,59 +318,88 @@ void HinGraph::find_meta(int type)
     cout << num_query_type_ << endl;
 
     vector<long> res(1000000, 0);
+    std::unordered_map<std::string, int> mp_cnt;
+
     for (int i = 0; i < num_query_type_; i++)
     {
+        // for each vertex
         int query_vertex_id = i + query_type_offset_;
         int start = vertex_offset_[query_vertex_id];
         int end = ((query_vertex_id + 1) == n) ? m : vertex_offset_[query_vertex_id + 1];
+
         for (int j = start; j < end; j++)
         {
-            int nei_type = edges_[j].v_type, nei_id = edges_[j].v_id;
-            int nei_edge_start = vertex_offset_[nei_id];
-            int nei_end = ((nei_id + 1) == n) ? m : vertex_offset_[nei_id + 1];
-            for (int k = nei_edge_start; k < nei_end; k++)
+            // for each neighbor
+            vector<int> meta_path(7, 0);
+            int type_1 = edges_[j].v_type, nei_id_1 = edges_[j].v_id, edge_type_1 = edges_[j].edge_type;
+            meta_path[0] = edge_type_1;
+            meta_path[1] = type_1;
+
+            int nei_edge_start_1 = vertex_offset_[nei_id_1];
+            int nei_end_2 = ((nei_id_1 + 1) == n) ? m : vertex_offset_[nei_id_1 + 1];
+            for (int k = nei_edge_start_1; k < nei_end_2; k++)
             {
                 int type_2 = edges_[k].v_type;
-                if (type_2 == nei_type || type_2 == p_query_type)
+                if (type_2 == type_1 || type_2 == p_query_type)
                     continue;
-                int add_meta = (nei_type + 1) * 1000 + type_2 + 1;
-                res[add_meta] += 1;
+                int nei_id_2 = edges_[k].v_id, edge_type_2 = edges_[k].edge_type;
+                meta_path[2] = edge_type_2;
+                meta_path[3] = type_2;
+
+                int nei_start_2 = vertex_offset_[nei_id_2];
+                int nei_end_2 = ((nei_id_2 + 1) == n) ? m : vertex_offset_[nei_id_2 + 1];
+
+                for (int x = nei_start_2; x < nei_end_2; x++)
+                {
+                    int type_3 = edges_[x].v_type;
+                    if (type_3 != type_1)
+                        continue;
+                    int nei_id_3 = edges_[x].v_id, edge_type_3 = edges_[x].edge_type;
+                    meta_path[4] = edge_type_3;
+                    meta_path[5] = type_3;
+
+                    int nei_start_3 = vertex_offset_[nei_id_3];
+                    int nei_end_3 = ((nei_id_3 + 1) == n) ? m : vertex_offset_[nei_id_3 + 1];
+                    for (int y = nei_start_3; y < nei_end_3; y++)
+                    {
+                        int type_4 = edges_[y].v_type;
+                        if (type_4 != type)
+                            continue;
+                        int edge_type_4 = edges_[y].edge_type;
+                        meta_path[6] = edge_type_4;
+
+                        string meta_path_str = vector_to_string(meta_path);
+
+                        mp_cnt[meta_path_str]++;
+                    }
+                }
             }
         }
 
         if (i % (num_query_type_ / 100) == 0)
             cout << i << endl;
     }
-    vector<int> indices(1000000);
-    for (int i = 0; i < 1000000; ++i)
-        indices[i] = i;
-    sort(indices.begin(), indices.end(), [&res](int a, int b)
-         { return res[a] > res[b]; });
-    int print_i = 0;
-    for (int i : indices)
-    {
-        if (res[i] == 0)
-            continue;
-        int type_1 = i / 1000 - 1;
-        int type_2 = i % 1000 - 1;
-        std::cout << type_1 << "\t" << type_2 << "\t" << res[i] << std::endl;
-        print_i++;
-        if (print_i > 200)
-            break;
-    }
-    cout << "start save meta-path" << endl;
+    // 将结果存入 vector，以便排序
+    std::vector<std::pair<std::string, int>> sorted_vec(mp_cnt.begin(), mp_cnt.end());
+
+    // 按计数降序排序
+    std::sort(sorted_vec.begin(), sorted_vec.end(), [](const auto &a, const auto &b)
+              {
+                  return a.second > b.second; // 降序
+              });
+
     string save_dir = "xxx";
     check_dir_path(save_dir);
     string save_path = save_dir + "/" + to_string(p_query_type) + ".txt";
     ofstream save_file = open_file_ofstream(save_path);
-    print_i = 0;
-    for (int i : indices)
+
+    // 输出结果
+    int print_i = 0;
+    cout << "Meta-path: " << endl;
+    for (const auto &pair : sorted_vec)
     {
-        if (res[i] == 0)
-            continue;
-        int type_1 = i / 1000 - 1;
-        int type_2 = i % 1000 - 1;
-        save_file << type_1 << "\t" << type_2 << "\t" << res[i] << endl;
+        std::cout << type << " " << pair.first << type << " Count: " << pair.second << std::endl;
+        save_file << type << " " << pair.first << type << " Count: " << pair.second << std::endl;
         print_i++;
         if (print_i > 200)
             break;
@@ -1194,7 +1237,7 @@ void HinGraph::online_cd()
     }
     for (int i = 0; i < num_query_type_; i++)
     {
-        if(community_member[i] == true)
+        if (community_member[i] == true)
             community_all++;
         if (o_utils.outlier[i] == true)
             outlier_number++;
@@ -1960,7 +2003,6 @@ void HinGraph::index_cd()
     vector<int> c_member_i;
     c_member_i.reserve(2 * num_query_type_);
 
-
     Timer t1;
     t1.Start();
     while (true)
@@ -2114,7 +2156,7 @@ void HinGraph::index_cd()
 
     for (int i = 0; i < num_query_type_; i++)
     {
-        if(community_member[i] == true)
+        if (community_member[i] == true)
             community_all++;
         if (o_utils.outlier[i] == true)
             outlier_number++;
@@ -4522,7 +4564,7 @@ void HinGraph::count_core_vertices()
 void HinGraph::output_result(string output)
 {
     // Others output_utils;
-    
+
     o_utils.output_CD_result(*this, output);
 
     // string output_file_path = output + "/query_type_" + to_string(p_query_type) + "-mu" + to_string(p_mu);
