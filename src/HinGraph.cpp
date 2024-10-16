@@ -307,6 +307,179 @@ std::string vector_to_string(const std::vector<int> &vec)
     return oss.str();
 }
 
+void HinGraph::process_query_type(int query_vertex_id, int type, int process_num,
+                                  std::unordered_map<std::string, int> &mp_cnt,
+                                  std::mutex &mp_cnt_mutex)
+{
+    int start = vertex_offset_[query_vertex_id];
+    int end = ((query_vertex_id + 1) == n) ? m : vertex_offset_[query_vertex_id + 1];
+
+    std::unordered_map<std::string, int> local_mp_cnt; // 局部计数器
+
+    int search_meta_path_time = 0;
+    bool trim_search = false;
+    for (int j = start; j < end; j++)
+    {
+        // for each neighbor
+        std::vector<int> meta_path(7, 0);
+        int type_1 = edges_[j].v_type, nei_id_1 = edges_[j].v_id, edge_type_1 = edges_[j].edge_type;
+        meta_path[0] = edge_type_1;
+        meta_path[1] = type_1;
+
+        int nei_edge_start_1 = vertex_offset_[nei_id_1];
+        int nei_end_2 = ((nei_id_1 + 1) == n) ? m : vertex_offset_[nei_id_1 + 1];
+        for (int k = nei_edge_start_1; k < nei_end_2; k++)
+        {
+            int type_2 = edges_[k].v_type;
+            if (type_2 == type_1 || type_2 == p_query_type)
+                continue;
+            int nei_id_2 = edges_[k].v_id, edge_type_2 = edges_[k].edge_type;
+            meta_path[2] = edge_type_2;
+            meta_path[3] = type_2;
+
+            int nei_start_2 = vertex_offset_[nei_id_2];
+            int nei_end_2 = ((nei_id_2 + 1) == n) ? m : vertex_offset_[nei_id_2 + 1];
+
+            for (int x = nei_start_2; x < nei_end_2; x++)
+            {
+                int type_3 = edges_[x].v_type;
+                if (type_3 != type_1)
+                    continue;
+                int nei_id_3 = edges_[x].v_id, edge_type_3 = edges_[x].edge_type;
+                meta_path[4] = edge_type_3;
+                meta_path[5] = type_3;
+
+                int nei_start_3 = vertex_offset_[nei_id_3];
+                int nei_end_3 = ((nei_id_3 + 1) == n) ? m : vertex_offset_[nei_id_3 + 1];
+                for (int y = nei_start_3; y < nei_end_3; y++)
+                {
+                    int type_4 = edges_[y].v_type;
+                    if (type_4 != type)
+                        continue;
+                    int edge_type_4 = edges_[y].edge_type;
+                    meta_path[6] = edge_type_4;
+
+                    std::string meta_path_str = vector_to_string(meta_path);
+                    // 更新局部计数器
+                    local_mp_cnt[meta_path_str]++;
+
+                    search_meta_path_time++;
+                    if (search_meta_path_time > 1E7)
+                    {
+                        trim_search = true;
+                        break;
+                    }
+                }
+                if (trim_search)
+                    break;
+            }
+            if (trim_search)
+                break;
+        }
+        if (trim_search)
+            break;
+    }
+
+    // 合并局部计数器到共享计数器
+    {
+        std::lock_guard<std::mutex> lock(mp_cnt_mutex);
+        for (const auto &pair : local_mp_cnt)
+        {
+            mp_cnt[pair.first] += pair.second;
+        }
+    }
+
+    if (process_num % 300 == 0)
+        cout << process_num << endl;
+}
+
+class ThreadPool
+{
+public:
+    ThreadPool(size_t num_threads);
+    ~ThreadPool();
+
+    std::atomic<int> completed_tasks{0};
+
+    void enqueue(std::function<void()> task);
+    void wait()
+    {
+        std::unique_lock<std::mutex> lock(queue_mutex);
+        condition.wait(lock, [this]
+                       { return tasks.empty() || completed_tasks.load() >= 19800; });
+    }
+
+private:
+    std::vector<std::thread> workers;
+    std::queue<std::function<void()>> tasks;
+
+    std::mutex queue_mutex;
+    std::condition_variable condition;
+    bool stop;
+
+    void worker();
+};
+
+ThreadPool::ThreadPool(size_t num_threads) : stop(false)
+{
+    for (size_t i = 0; i < num_threads; ++i)
+    {
+        workers.emplace_back(&ThreadPool::worker, this);
+    }
+}
+
+ThreadPool::~ThreadPool()
+{
+    {
+        std::unique_lock<std::mutex> lock(queue_mutex);
+        stop = true;
+    }
+    condition.notify_all();
+    for (std::thread &worker : workers)
+    {
+        worker.join();
+    }
+    cout << "finish thread pool" << endl;
+}
+
+void ThreadPool::enqueue(std::function<void()> task)
+{
+    {
+        std::unique_lock<std::mutex> lock(queue_mutex);
+        tasks.push(std::move(task));
+    }
+    condition.notify_one();
+}
+
+void ThreadPool::worker()
+{
+    while (true)
+    {
+        std::function<void()> task;
+        {
+            std::unique_lock<std::mutex> lock(queue_mutex);
+            condition.wait(lock, [this]
+                           { return stop || !tasks.empty(); });
+            if (stop && tasks.empty())
+                return;
+            task = std::move(tasks.front());
+            tasks.pop();
+        }
+        task();
+        int completed = completed_tasks.load();
+        if (completed % 1000 == 0)
+        {
+            cout << "completed tasks: " << completed << endl;
+        }
+        // 更新完成任务计数并通知条件变量
+        {
+            std::unique_lock<std::mutex> lock(queue_mutex);
+            ++completed_tasks;
+        }
+        condition.notify_all(); // 通知等待中的线程
+    }
+}
+
 void HinGraph::find_meta(int type)
 {
     cout << "Start find meta-path" << endl;
@@ -317,68 +490,39 @@ void HinGraph::find_meta(int type)
     num_query_type_ = end - query_type_offset_;
     cout << num_query_type_ << endl;
 
-    vector<long> res(1000000, 0);
     std::unordered_map<std::string, int> mp_cnt;
+    std::mutex mp_cnt_mutex; // 局部的互斥锁
 
-    for (int i = 0; i < num_query_type_; i++)
+    // 随机选择最多 50000 个索引
+    std::vector<int> indices(num_query_type_);
+    std::iota(indices.begin(), indices.end(), 0); // 填充 0, 1, ..., num_query_type_-1
+
+    if (num_query_type_ > 20000)
+    {
+        // 使用随机数生成器
+        std::random_device rd;
+        std::mt19937 g(rd());
+        std::shuffle(indices.begin(), indices.end(), g); // 打乱索引
+
+        // 只取前 20000 个
+        indices.resize(20000);
+    }
+    cout << indices.size() << endl;
+
+    ThreadPool pool(16); // 创建一个包含16个线程的线程池
+
+    for (int i = 0; i < indices.size(); i++)
     {
         // for each vertex
-        int query_vertex_id = i + query_type_offset_;
-        int start = vertex_offset_[query_vertex_id];
-        int end = ((query_vertex_id + 1) == n) ? m : vertex_offset_[query_vertex_id + 1];
-
-        for (int j = start; j < end; j++)
-        {
-            // for each neighbor
-            vector<int> meta_path(7, 0);
-            int type_1 = edges_[j].v_type, nei_id_1 = edges_[j].v_id, edge_type_1 = edges_[j].edge_type;
-            meta_path[0] = edge_type_1;
-            meta_path[1] = type_1;
-
-            int nei_edge_start_1 = vertex_offset_[nei_id_1];
-            int nei_end_2 = ((nei_id_1 + 1) == n) ? m : vertex_offset_[nei_id_1 + 1];
-            for (int k = nei_edge_start_1; k < nei_end_2; k++)
-            {
-                int type_2 = edges_[k].v_type;
-                if (type_2 == type_1 || type_2 == p_query_type)
-                    continue;
-                int nei_id_2 = edges_[k].v_id, edge_type_2 = edges_[k].edge_type;
-                meta_path[2] = edge_type_2;
-                meta_path[3] = type_2;
-
-                int nei_start_2 = vertex_offset_[nei_id_2];
-                int nei_end_2 = ((nei_id_2 + 1) == n) ? m : vertex_offset_[nei_id_2 + 1];
-
-                for (int x = nei_start_2; x < nei_end_2; x++)
-                {
-                    int type_3 = edges_[x].v_type;
-                    if (type_3 != type_1)
-                        continue;
-                    int nei_id_3 = edges_[x].v_id, edge_type_3 = edges_[x].edge_type;
-                    meta_path[4] = edge_type_3;
-                    meta_path[5] = type_3;
-
-                    int nei_start_3 = vertex_offset_[nei_id_3];
-                    int nei_end_3 = ((nei_id_3 + 1) == n) ? m : vertex_offset_[nei_id_3 + 1];
-                    for (int y = nei_start_3; y < nei_end_3; y++)
-                    {
-                        int type_4 = edges_[y].v_type;
-                        if (type_4 != type)
-                            continue;
-                        int edge_type_4 = edges_[y].edge_type;
-                        meta_path[6] = edge_type_4;
-
-                        string meta_path_str = vector_to_string(meta_path);
-
-                        mp_cnt[meta_path_str]++;
-                    }
-                }
-            }
-        }
-
-        if (i % (num_query_type_ / 100) == 0)
-            cout << i << endl;
+        int i_indicse = indices[i];
+        int query_vertex_id = i_indicse + query_type_offset_;
+        int number_i = i;
+        pool.enqueue([this, query_vertex_id, type, number_i, &mp_cnt, &mp_cnt_mutex]()
+                     { process_query_type(query_vertex_id, type, number_i, mp_cnt, mp_cnt_mutex); });
     }
+
+    pool.wait(); // 等待所有任务完成
+
     // 将结果存入 vector，以便排序
     std::vector<std::pair<std::string, int>> sorted_vec(mp_cnt.begin(), mp_cnt.end());
 
@@ -398,8 +542,8 @@ void HinGraph::find_meta(int type)
     cout << "Meta-path: " << endl;
     for (const auto &pair : sorted_vec)
     {
-        std::cout << type << " " << pair.first << type << " Count: " << pair.second << std::endl;
-        save_file << type << " " << pair.first << type << " Count: " << pair.second << std::endl;
+        std::cout << type << " " << pair.first << " " << type << " Count: " << pair.second << std::endl;
+        save_file << type << " " << pair.first << " " << type << " Count: " << pair.second << std::endl;
         print_i++;
         if (print_i > 200)
             break;

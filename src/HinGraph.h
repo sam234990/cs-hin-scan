@@ -22,6 +22,9 @@
 #include <thread>
 #include <functional>
 #include <random>
+#include <mutex>
+#include <condition_variable>
+#include <atomic>
 
 struct Vertex_neighbor
 {
@@ -237,7 +240,6 @@ public:
     // cd result variables
     vector<vector<int>> all_res_com;
 
-
     // index variables
     vector<MuTree> index_tree;
     PathSim path_utils;
@@ -252,6 +254,9 @@ public:
     void cs_hin_scan(string query_file, string mode, int scale);
     void construct_index(string query_file, string option, int start_k, int scale);
     void find_meta(int type);
+    void process_query_type(int query_vertex_id, int type, int process_num,
+                                  std::unordered_map<std::string, int> &mp_cnt,
+                                  std::mutex &mp_cnt_mutex);
 
     int max_scale_num, max_scale_id;
     int scale_;
