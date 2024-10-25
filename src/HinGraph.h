@@ -228,6 +228,9 @@ public:
     vector<float> pathsim_epsilon;
     double unit_epsilon_value;
 
+    // other baseline parameters
+    double sum_epsilon;
+
     // scan variables
     int query_type_offset_; // vertex_id = i + query_type_offset_, i is the subscript in adjacencyList
     int num_query_type_;

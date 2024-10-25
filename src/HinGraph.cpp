@@ -220,7 +220,7 @@ void HinGraph::cs_hin_scan(string query_file, string mode, int scale)
             baseline_query_();
             return;
         }
-        else if (mode == "-qeff" || mode == "-qeffcos" || mode == "-qeffpathsim")
+        else if (mode == "-qeff" || mode == "-qeffcos" || mode == "-qeffpathsim" || mode == "-qsum")
         {
             mode_query = 2;
             baseline_query_();
@@ -252,10 +252,25 @@ void HinGraph::construct_index(string query_file, string option, int start_k, in
 
     string type_index_path = data_index_dir_ + "/" + to_string(p_query_type);
     string all_sim_path = type_index_path + "/sim_graph.txt";
+
+    bool sim_time = true;
+    if (sim_time)
+    {
+        cout << "start compute the Similarity graph" << endl;
+        search_d_neighbor();
+        check_empty_set();
+        // save_d_n();
+        t1.StopAndPrint("search k-strata time");
+        compute_all_similarity();
+        // save_all_similarity();
+        t1.StopAndPrint("compute similarity time");
+        return;
+    }
+
     std::ifstream sim_file(all_sim_path.c_str());
     if (option == "-fidxscal" || option == "-fidx1scal" || option == "-fidx_DBP" || sim_file.good() == false)
     {
-        cout << "start counput the Similarity graph" << endl;
+        cout << "start compute the Similarity graph" << endl;
         search_d_neighbor();
         check_empty_set();
         if (option == "-fidx_DBP")
@@ -670,10 +685,9 @@ void HinGraph::load_query_file(string query_file_path)
                 {
                     query_pathsim = true;
                     key_number = int(value);
-                    cout << "Use the special epsilon vector and eval Pathsim" << endl;
+                    cout << "Use the special epsilon vector and eval Pathsim, epsilon line:" << key_number << endl;
                     break;
                 }
-
                 else
                     type_epsilon[key] = value;
             }
@@ -696,7 +710,7 @@ void HinGraph::load_query_file(string query_file_path)
         lineCount++;
     }
     if (key_number > 0)
-    {
+    { // use special epsilon vector and eval pathsim
         string key_line;
         for (int i = 0; i < key_number; i++)
         {
@@ -791,6 +805,10 @@ void HinGraph::load_query_file(string query_file_path)
     int end = ((p_query_type + 1) == n_types) ? n : vertex_start_map_[p_query_type + 1];
     num_query_type_ = end - query_type_offset_;
 
+    if(query_pathsim){
+        path_utils.initial_metapaths(metapath_vecs);
+        path_utils.initial_query_vertex(num_query_type_);
+    }
     return;
 }
 
@@ -852,6 +870,7 @@ void HinGraph::initialize_query_()
         }
     }
     int min_distance = 1000;
+    sum_epsilon = 0.0;
     for (auto &pair : type_epsilon)
     {
         if (pair.first == p_query_type || pair.second == 0.0)
@@ -866,6 +885,11 @@ void HinGraph::initialize_query_()
             cand_gen_type = pair.first;
             min_distance = distance_[pair.first];
         }
+        sum_epsilon += pair.second;
+    }
+    if (option_ == "-qsum")
+    {
+        cout << "sum epsilon: " << sum_epsilon << endl;
     }
     // cout << cand_gen_type << " ";
 
@@ -1084,11 +1108,11 @@ void HinGraph::baseline_query_()
     vector<double> sim_all(1000, 0);
     vector<double> cos_all(1000, 0);
     vector<double> pathsim_all(1000, 0);
-    if (option_ == "-qeffpathsim")
-    {
-        path_utils.initial_metapaths(metapath_vecs);
-        path_utils.initial_query_vertex(num_query_type_);
-    }
+    // if (option_ == "-qeffpathsim")
+    // {
+    //     path_utils.initial_metapaths(metapath_vecs);
+    //     path_utils.initial_query_vertex(num_query_type_);
+    // }
 
     vector<long> time_cost(query_node_num, 0);
     for (int i = 0; i < query_node_num && i < query_node_list.size(); i++)
@@ -1131,16 +1155,17 @@ void HinGraph::baseline_query_()
         all_time += cost_time;
         time_cost[i] = cost_time;
         print_result(false, cost_time);
-        if (option_ == "-qeff" || option_ == "-qeffcos" || option_ == "-qeffpathsim")
+        if (option_ == "-qeff" || option_ == "-qeffcos" || option_ == "-qeffpathsim" || option_ == "-qsum")
             online_effective_result(i, vertex_num_all, core_num_all, diameter_all,
                                     density_all, cc_all, sim_all, cos_all, pathsim_all);
     }
     string str1 = "finish query " + to_string(query_node_num) + " times, use time:";
     Timer::PrintTime(str1, all_time);
-    if (option_ == "-qeff" || option_ == "-qeffcos" || option_ == "-qeffpathsim")
+    if (option_ == "-qeff" || option_ == "-qeffcos" || option_ == "-qeffpathsim" || option_ == "-qsum")
     {
         long vertex_num_ = 0, d_ = 0, core_num_ = 0;
-        double den_ = 0.0, cc_ = 0.0, sim_ = 0.0, pathsim_ = 0.0;
+        double den_ = 0.0, cc_ = 0.0;
+        double jacsim_ = 0.0, cossim_ = 0.0, pathsim_ = 0.0;
         int com_num = 0;
         for (int i = 0; i < query_node_num && i < query_node_list.size(); i++)
         {
@@ -1152,7 +1177,8 @@ void HinGraph::baseline_query_()
             d_ += diameter_all[i];
             den_ += density_all[i];
             cc_ += cc_all[i];
-            sim_ += sim_all[i];
+            jacsim_ += sim_all[i];
+            cossim_ += cos_all[i];
             pathsim_ += pathsim_all[i];
         }
         cout << "average vertex num is " << double(vertex_num_) / com_num << endl;
@@ -1160,8 +1186,9 @@ void HinGraph::baseline_query_()
         cout << "average diameter is " << double(d_) / com_num << endl;
         cout << "average density is " << den_ / com_num << endl;
         cout << "average cc is " << cc_ / com_num << endl;
-        cout << "average similarity is " << sim_ / com_num << endl;
-        cout << "average PathSim is " << pathsim_ / com_num << endl;
+        cout << "average jac similarity is " << jacsim_ / com_num << endl;
+        cout << "average cos similarity is " << cossim_ / com_num << endl;
+        cout << "average pathsim similarity is " << pathsim_ / com_num << endl;
     }
 }
 
@@ -4470,7 +4497,7 @@ bool HinGraph::check_struc_sim(int a, int b)
 {
     if (a == b)
         return true;
-
+    double sum_sim = 0.0;
     for (const auto &pair : type_epsilon)
     {
         int type = pair.first;
@@ -4480,11 +4507,23 @@ bool HinGraph::check_struc_sim(int a, int b)
         // if(dn_adj_List[a].d_neighbor_[type].size() == 0 || dn_adj_List[b].d_neighbor_[type].size() == 0)
         //     return false;
         double sim = 0.0;
+        if (option_ == "-qsum")
+        {
+            sum_sim += calJacSim(dn_adj_List[a].d_neighbor_[type], dn_adj_List[b].d_neighbor_[type]);
+            continue;
+        }
         if (option_ == "-qeffcos")
             sim = calCosSim(dn_adj_List[a].d_neighbor_[type], dn_adj_List[b].d_neighbor_[type]);
         else
             sim = calJacSim(dn_adj_List[a].d_neighbor_[type], dn_adj_List[b].d_neighbor_[type]);
         if (sim < type_ep)
+            return false;
+    }
+    if (option_ == "-qsum")
+    {
+        if (sum_sim >= sum_epsilon)
+            return true;
+        else
             return false;
     }
     return true;
