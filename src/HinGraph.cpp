@@ -1195,8 +1195,8 @@ void HinGraph::baseline_query_()
 void HinGraph::baseline_pathsim_query_()
 {
     cout << "start baseline online query (use PathSim)" << endl;
-    path_utils.initial_metapaths(metapath_vecs);
-    path_utils.initial_query_vertex(num_query_type_);
+    // path_utils.initial_metapaths(metapath_vecs);
+    // path_utils.initial_query_vertex(num_query_type_);
     long all_time = 0;
     has_community = 0;
     vector<int> vertex_num_all(1000, 0);
@@ -1915,8 +1915,8 @@ void HinGraph::index_query_()
     }
     load_d_n();
 
-    path_utils.initial_metapaths(metapath_vecs);
-    path_utils.initial_query_vertex(num_query_type_);
+    // path_utils.initial_metapaths(metapath_vecs);
+    // path_utils.initial_query_vertex(num_query_type_);
 
     cout << "start index query " << endl;
     long all_time = 0;
