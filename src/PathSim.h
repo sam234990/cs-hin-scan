@@ -7,6 +7,7 @@
 #include <string>
 #include <unordered_map>
 #include <algorithm> // For std::remove_if
+#include <omp.h> // 包含 OpenMP 头文件
 
 using namespace std;
 

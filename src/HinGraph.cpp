@@ -560,7 +560,7 @@ void HinGraph::find_meta(int type)
         std::cout << type << " " << pair.first << " " << type << " Count: " << pair.second << std::endl;
         save_file << type << " " << pair.first << " " << type << " Count: " << pair.second << std::endl;
         print_i++;
-        if (print_i > 200)
+        if (print_i > 1000)
             break;
     }
     cout << "finish save meta-path" << endl;

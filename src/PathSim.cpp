@@ -102,7 +102,7 @@ void PathSim::search(const HinGraph &graph, int query_i)
     path_search_finish_[query_i] = true;
 }
 
-double PathSim::compute_avg_pathsim(const HinGraph &graph,int i, int j)
+double PathSim::compute_avg_pathsim(const HinGraph &graph, int i, int j)
 {
     if (i == j)
         return 1.0;
@@ -201,6 +201,8 @@ void PathSim::trans_homo_graph(const HinGraph &graph, string meta_path, string s
     homo_graph.resize(graph.num_query_type_);
     homo_degree.resize(graph.num_query_type_);
     int m = 0;
+    omp_set_num_threads(16);
+#pragma omp parallel for reduction(+ : m) // 使用 reduction 以保证 m 的线程安全累加
     for (int i = 0; i < graph.num_query_type_; i++)
     {
         // homo_graph[i].reserve(1000);
@@ -234,18 +236,22 @@ void PathSim::trans_homo_graph(const HinGraph &graph, string meta_path, string s
                 bfs_path.push(make_pair(nei_id, cur_step + 1));
             }
         }
-        set<int> uni_nei(i_neighbor.begin(), i_neighbor.end());
-        auto it = uni_nei.find(i);
-        if (it != uni_nei.end())
-            uni_nei.erase(it);
-        i_neighbor.assign(uni_nei.begin(), uni_nei.end());
-        std::sort(i_neighbor.begin(), i_neighbor.end());
-        m += i_neighbor.size();
-        homo_degree[i] = i_neighbor.size();
+        sort(i_neighbor.begin(), i_neighbor.end());
+        i_neighbor.erase(unique(i_neighbor.begin(), i_neighbor.end()), i_neighbor.end());
+        i_neighbor.erase(remove(i_neighbor.begin(), i_neighbor.end(), i), i_neighbor.end());
+        int i_degree = i_neighbor.size();
+        if (i_degree > graph.num_query_type_)
+            cout << "error process this vertex, id: " << i + graph.query_type_offset_ << endl;
+        m += i_degree;
+        homo_degree[i] = i_degree;
         homo_graph[i] = move(i_neighbor);
         if (i % (graph.num_query_type_ / 10) == 0)
+        {
+#pragma omp critical
             cout << i << endl;
+        }
     }
+    
     cout << "finish trans homo graph, start save" << endl;
     string adj_file_path = save_path + "/adj.txt";
     ofstream adj_file = open_file_ofstream(adj_file_path);
@@ -267,6 +273,7 @@ void PathSim::trans_homo_graph(const HinGraph &graph, string meta_path, string s
         degree_file << homo_degree[i] << endl;
     }
     degree_file.close();
+    cout << "finish save" << endl;
 }
 
 vector<int> PathSim::p_induced_graph(const HinGraph &graph, int i)
@@ -291,6 +298,6 @@ vector<int> PathSim::p_induced_graph(const HinGraph &graph, int i)
     p_neighbor.erase(last, p_neighbor.end());
     p_g[i] = move(p_neighbor);
     p_induce[i] = true;
-    
+
     return p_g[i];
 }
