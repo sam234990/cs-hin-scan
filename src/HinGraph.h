@@ -187,6 +187,7 @@ public:
     int get_vertex_type(int vertex_id);
     double calJacSim(const vector<int> &vec1, const vector<int> &vec2);
     double calCosSim(const vector<int> &vec1, const vector<int> &vec2);
+    double calOverCC(const vector<int> &vec1, const vector<int> &vec2);
     double avgStrSim(int a, int b);
 
     void my_union(int u, int v);
@@ -258,8 +259,8 @@ public:
     void construct_index(string query_file, string option, int start_k, int scale);
     void find_meta(int type);
     void process_query_type(int query_vertex_id, int type, int process_num,
-                                  std::unordered_map<std::string, int> &mp_cnt,
-                                  std::mutex &mp_cnt_mutex);
+                            std::unordered_map<std::string, int> &mp_cnt,
+                            std::mutex &mp_cnt_mutex);
 
     int max_scale_num, max_scale_id;
     int scale_;

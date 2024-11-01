@@ -162,7 +162,8 @@ void HinGraph::cs_hin_scan(string query_file, string mode, int scale)
         // query_node_list = move(randomSampling(num_query_type_, query_node_num));
     }
 
-    if (mode == "-qidx" || mode == "-qidxsel" || mode == "-qidxSCAN" || mode == "-qidxscal" || mode == "-qidxeff")
+    // if (mode == "-qidx" || mode == "-qidxsel" || mode == "-qidxSCAN" || mode == "-qidxscal" || mode == "-qidxeff")
+    if (mode.find("-qidx") == 0)
     {
 
         mode_query = 12;
@@ -196,7 +197,7 @@ void HinGraph::cs_hin_scan(string query_file, string mode, int scale)
             return;
         }
 
-        if (mode == "-qpath_sim")
+        if (mode == "-qpath_sim" || mode == "-qhetesim")
         {
             mode_query = 1;
             baseline_pathsim_query_();
@@ -805,7 +806,8 @@ void HinGraph::load_query_file(string query_file_path)
     int end = ((p_query_type + 1) == n_types) ? n : vertex_start_map_[p_query_type + 1];
     num_query_type_ = end - query_type_offset_;
 
-    if(query_pathsim){
+    if (query_pathsim)
+    {
         path_utils.initial_metapaths(metapath_vecs);
         path_utils.initial_query_vertex(num_query_type_);
     }
@@ -1108,11 +1110,6 @@ void HinGraph::baseline_query_()
     vector<double> sim_all(1000, 0);
     vector<double> cos_all(1000, 0);
     vector<double> pathsim_all(1000, 0);
-    // if (option_ == "-qeffpathsim")
-    // {
-    //     path_utils.initial_metapaths(metapath_vecs);
-    //     path_utils.initial_query_vertex(num_query_type_);
-    // }
 
     vector<long> time_cost(query_node_num, 0);
     for (int i = 0; i < query_node_num && i < query_node_list.size(); i++)
@@ -1194,9 +1191,14 @@ void HinGraph::baseline_query_()
 
 void HinGraph::baseline_pathsim_query_()
 {
-    cout << "start baseline online query (use PathSim)" << endl;
-    // path_utils.initial_metapaths(metapath_vecs);
-    // path_utils.initial_query_vertex(num_query_type_);
+    if (option_ == "-qpath_sim")
+        cout << "start baseline online query (use PathSim)" << endl;
+    else if (option_ == "-qhetesim")
+    {
+        cout << "start baseline online query (use HeteSim)" << endl;
+        path_utils.initial_hetesim(*this, n, num_query_type_);
+    }
+
     long all_time = 0;
     has_community = 0;
     vector<int> vertex_num_all(1000, 0);
@@ -1241,7 +1243,7 @@ void HinGraph::baseline_pathsim_query_()
         if (similar_degree[query_i] < p_mu)
         {
             is_in_community[query_i] = false;
-            cout << query_i << " Cannot search a SCAN-like community (PathSim)" << endl;
+            cout << query_i << " Cannot search a SCAN-like community " << option_ << endl;
         }
         else
         {
@@ -1269,6 +1271,10 @@ void HinGraph::baseline_pathsim_query_()
         online_effective_result(i, vertex_num_all, core_num_all, diameter_all,
                                 density_all, cc_all, sim_all, cos_all, pathsim_all);
     }
+
+    string str1 = "finish query " + to_string(query_node_num) + " times, use time:";
+    Timer::PrintTime(str1, all_time);
+
     int vertex_num_ = 0, d_ = 0, core_num_ = 0;
     double den_ = 0.0, cc_ = 0.0;
     double jacsim_ = 0.0, cossim_ = 0.0, pathsim_ = 0.0;
@@ -1462,6 +1468,8 @@ void HinGraph::scan_check_cluster_core(int u)
             bool sim_res;
             if (option_ == "-qpath_sim")
                 sim_res = path_utils.judge_pathsim(u, v, pathsim_epsilon);
+            else if (option_ == "-qhetesim")
+                sim_res = path_utils.judge_hetesim(u + query_type_offset_, v_id, pathsim_epsilon);
             else
                 sim_res = check_struc_sim(u, v);
 
@@ -4514,6 +4522,8 @@ bool HinGraph::check_struc_sim(int a, int b)
         }
         if (option_ == "-qeffcos")
             sim = calCosSim(dn_adj_List[a].d_neighbor_[type], dn_adj_List[b].d_neighbor_[type]);
+        else if (option_ == "-qeffocc")
+            sim = calOverCC(dn_adj_List[a].d_neighbor_[type], dn_adj_List[b].d_neighbor_[type]);
         else
             sim = calJacSim(dn_adj_List[a].d_neighbor_[type], dn_adj_List[b].d_neighbor_[type]);
         if (sim < type_ep)
@@ -4600,6 +4610,42 @@ double HinGraph::calCosSim(const vector<int> &vec1, const vector<int> &vec2)
     }
     double denominator = sqrt(size_a * size_b);
     return static_cast<double>(intersection) / denominator;
+}
+
+double HinGraph::calOverCC(const vector<int> &vec1, const vector<int> &vec2)
+{
+    int size_a = vec1.size(), size_b = vec2.size();
+    if (size_a == 0 && size_b == 0)
+    {
+        return 1.0;
+    }
+    else if ((size_a == 0 && size_b != 0) || (size_a != 0 && size_b == 0))
+    {
+        return 0.0;
+    }
+    int intersection = 0;
+    size_t i = 0;
+    size_t j = 0;
+
+    while (i < vec1.size() && j < vec2.size())
+    {
+        if (vec1[i] == vec2[j])
+        {
+            intersection++;
+            i++;
+            j++;
+        }
+        else if (vec1[i] < vec2[j])
+        {
+            i++;
+        }
+        else
+        {
+            j++;
+        }
+    }
+    int min_size = size_a < size_b ? size_a : size_b;
+    return static_cast<double>(intersection) / static_cast<double>(min_size);
 }
 
 vector<double> HinGraph::avgjac_cosSim(int a, int b)

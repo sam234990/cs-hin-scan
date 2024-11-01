@@ -21,6 +21,7 @@ void PathSim::initial_metapaths(vector<string> mps)
 {
     path_num = mps.size();
     MetaPathVec.resize(path_num);
+    OnlyVertexType.resize(path_num);
     for (int i = 0; i < path_num; i++)
     {
         string trimmedStr = trim(mps[i]);
@@ -43,6 +44,14 @@ void PathSim::initial_metapaths(vector<string> mps)
             cerr << "wrong format metapath: " << mps[i] << endl;
             exit(-1);
         }
+    }
+
+    for (size_t i = 0; i < MetaPathVec.size(); i++)
+    {
+        MetaPath &cur_p = MetaPathVec[i];
+        OnlyVertexType[i] = false;
+        if (cur_p.edge[0] == -1)
+            OnlyVertexType[i] = true;
     }
 }
 
@@ -251,7 +260,7 @@ void PathSim::trans_homo_graph(const HinGraph &graph, string meta_path, string s
             cout << i << endl;
         }
     }
-    
+
     cout << "finish trans homo graph, start save" << endl;
     string adj_file_path = save_path + "/adj.txt";
     ofstream adj_file = open_file_ofstream(adj_file_path);
@@ -300,4 +309,118 @@ vector<int> PathSim::p_induced_graph(const HinGraph &graph, int i)
     p_induce[i] = true;
 
     return p_g[i];
+}
+
+void PathSim::initial_hetesim(const HinGraph &graph, int vertex_num, int query_num)
+{
+
+    // HeteSim initial
+    hete_path_cnt.resize(vertex_num);
+    vertex_nei_type_split.resize(vertex_num);
+    for (int i = 0; i < vertex_num; i++)
+    {
+        // HeteSim initial
+        hete_path_cnt[i] = vector<path_hetesim>(path_num);
+    }
+
+    // get related vertex type
+    set<int> vertex_type;
+    for (size_t i = 0; i < MetaPathVec.size(); i++)
+    {
+        MetaPath &cur_p = MetaPathVec[i];
+        for (int j = 0; j < cur_p.pathLen; j++)
+            vertex_type.insert(cur_p.vertex[j]);
+    }
+    for (int type : vertex_type)
+    {
+        int type_start = graph.vertex_start_map_[type];
+        int type_end = (type + 1) == graph.n_types ? graph.n : graph.vertex_start_map_[type + 1];
+        for (int vertex_id = type_start; vertex_id < type_end; vertex_id++)
+        {
+            vertex_nei_type_split[vertex_id] = nei_list();
+            int nei_start = graph.vertex_offset_[vertex_id];
+            int nei_end = ((vertex_id + 1) == graph.n) ? graph.m : graph.vertex_offset_[vertex_id + 1];
+            int nei_size = nei_end - nei_start;
+            for (int j = nei_start; j < nei_end; j++)
+            {
+                int nei_type = graph.edges_[j].v_type, nei_id = graph.edges_[j].v_id;
+                int edge_type = graph.edges_[j].edge_type;
+                // add vertex nei list
+                if (vertex_nei_type_split[vertex_id].vertex_type_nei[nei_type].empty())
+                    vertex_nei_type_split[vertex_id].vertex_type_nei[nei_type].reserve(nei_size);
+                vertex_nei_type_split[vertex_id].vertex_type_nei[nei_type].push_back(nei_id);
+
+                // add edge type nei list
+                if (vertex_nei_type_split[vertex_id].edge_type_nei[edge_type].empty())
+                    vertex_nei_type_split[vertex_id].edge_type_nei[edge_type].reserve(nei_size);
+                vertex_nei_type_split[vertex_id].edge_type_nei[edge_type].push_back(nei_id);
+            }
+        }
+    }
+}
+
+bool PathSim::judge_hetesim(int id1, int id2, const vector<float> sim_threshold)
+{
+    if (id1 == id2)
+        return true;
+    for (size_t meta_i = 0; meta_i < MetaPathVec.size(); meta_i++)
+    {
+        double sim = compute_hetesim(id1, id2, meta_i, 0);
+        if (sim < sim_threshold[meta_i])
+            return false;
+    }
+    return true;
+}
+
+double PathSim::compute_hetesim(int id1, int id2, int mp_id, int step)
+{
+    if (id1 == id2)
+        return 1.0;
+    if (step == MetaPathVec[mp_id].pathLen / 2) // only should compute half of the path
+        return 0.0;
+
+    if (hete_path_cnt[id1][mp_id].hetesim.find(id2) != hete_path_cnt[id1][mp_id].hetesim.end())
+        return hete_path_cnt[id1][mp_id].hetesim[id2];
+    if (hete_path_cnt[id2][mp_id].hetesim.find(id1) != hete_path_cnt[id2][mp_id].hetesim.end())
+        return hete_path_cnt[id2][mp_id].hetesim[id1];
+
+    // compute hetesim
+    int mp_len = MetaPathVec[mp_id].pathLen;
+    std::vector<int> *id1_nei_list = nullptr;
+    std::vector<int> *id2_nei_list = nullptr;
+    if (OnlyVertexType[mp_id] == true)
+    {
+        int next_type_1 = MetaPathVec[mp_id].vertex[step + 1];
+        int next_type_2 = MetaPathVec[mp_id].vertex[mp_len - step - 2];
+        id1_nei_list = &vertex_nei_type_split[id1].vertex_type_nei[next_type_1];
+        id2_nei_list = &vertex_nei_type_split[id2].vertex_type_nei[next_type_2];
+    }
+    else
+    {
+        int next_type_1 = MetaPathVec[mp_id].edge[step];
+        int next_type_2 = MetaPathVec[mp_id].edge[mp_len - step - 2];
+        id1_nei_list = &vertex_nei_type_split[id1].edge_type_nei[next_type_1];
+        id2_nei_list = &vertex_nei_type_split[id2].edge_type_nei[next_type_2];
+    }
+
+    int id1_size = id1_nei_list->size();
+    int id2_size = id2_nei_list->size();
+
+    if (id1_size == 0 || id2_size == 0)
+    {
+        hete_path_cnt[id1][mp_id].hetesim[id2] = 0.0;
+        hete_path_cnt[id2][mp_id].hetesim[id1] = 0.0;
+        return 0.0;
+    }
+
+    double sum_sim = 0.0;
+    for (auto id1_nei : *id1_nei_list)
+        for (auto id2_nei : *id2_nei_list)
+            sum_sim += compute_hetesim(id1_nei, id2_nei, mp_id, step + 1);
+    
+    double denominator = sqrt(id1_size * id2_size);
+    double sim = sum_sim / denominator;
+    hete_path_cnt[id1][mp_id].hetesim[id2] = sim;
+    hete_path_cnt[id2][mp_id].hetesim[id1] = sim;
+    return sim;
 }
