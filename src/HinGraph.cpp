@@ -221,7 +221,8 @@ void HinGraph::cs_hin_scan(string query_file, string mode, int scale)
             baseline_query_();
             return;
         }
-        else if (mode == "-qeff" || mode == "-qeffcos" || mode == "-qeffpathsim" || mode == "-qsum")
+        // else if (mode == "-qeff" || mode == "-qeffcos" || mode == "-qeffpathsim" || mode == "-qsum")
+        else if (mode.find("-qeff") == 0 || mode == "-qsum")
         {
             mode_query = 2;
             baseline_query_();
@@ -1146,19 +1147,23 @@ void HinGraph::baseline_query_()
                 }
                 core_decomposition(delete_q);
             }
+            has_community++;
         }
 
         long cost_time = t1.StopTime();
         all_time += cost_time;
         time_cost[i] = cost_time;
         print_result(false, cost_time);
-        if (option_ == "-qeff" || option_ == "-qeffcos" || option_ == "-qeffpathsim" || option_ == "-qsum")
+        // if (option_ == "-qeff" || option_ == "-qeffcos" || option_ == "-qeffpathsim" || option_ == "-qsum")
+        if ((p_mu == 5) && (option_.find("-qeff") == 0 || option_ == "-qsum"))
             online_effective_result(i, vertex_num_all, core_num_all, diameter_all,
                                     density_all, cc_all, sim_all, cos_all, pathsim_all);
     }
     string str1 = "finish query " + to_string(query_node_num) + " times, use time:";
     Timer::PrintTime(str1, all_time);
-    if (option_ == "-qeff" || option_ == "-qeffcos" || option_ == "-qeffpathsim" || option_ == "-qsum")
+    cout << "the number of search community:" << has_community << endl;
+    // if (option_ == "-qeff" || option_ == "-qeffcos" || option_ == "-qeffpathsim" || option_ == "-qsum")
+    if ((p_mu == 5) && (option_.find("-qeff") == 0 || option_ == "-qsum"))
     {
         long vertex_num_ = 0, d_ = 0, core_num_ = 0;
         double den_ = 0.0, cc_ = 0.0;
@@ -1263,44 +1268,49 @@ void HinGraph::baseline_pathsim_query_()
                 path_utils.generate_cand_nei(*this, vertex_i, cand_sn_list[vertex_i]);
                 scan_check_cluster_core(vertex_i);
             }
+            has_community++;
         }
         long cost_time = t1.StopTime();
         all_time += cost_time;
         time_cost[i] = cost_time;
         print_result(false, cost_time);
-        online_effective_result(i, vertex_num_all, core_num_all, diameter_all,
-                                density_all, cc_all, sim_all, cos_all, pathsim_all);
+        if (p_mu == 5)
+            online_effective_result(i, vertex_num_all, core_num_all, diameter_all,
+                                    density_all, cc_all, sim_all, cos_all, pathsim_all);
     }
 
     string str1 = "finish query " + to_string(query_node_num) + " times, use time:";
     Timer::PrintTime(str1, all_time);
-
-    int vertex_num_ = 0, d_ = 0, core_num_ = 0;
-    double den_ = 0.0, cc_ = 0.0;
-    double jacsim_ = 0.0, cossim_ = 0.0, pathsim_ = 0.0;
-    int com_num = 0;
-    for (int i = 0; i < query_node_num && i < query_node_list.size(); i++)
+    cout << "the number of search community:" << has_community << endl;
+    if (p_mu == 5)
     {
-        if (vertex_num_all[i] == 0)
-            continue;
-        com_num++;
-        vertex_num_ += vertex_num_all[i];
-        core_num_ += core_num_all[i];
-        d_ += diameter_all[i];
-        den_ += density_all[i];
-        cc_ += cc_all[i];
-        jacsim_ += sim_all[i];
-        cossim_ += cos_all[i];
-        pathsim_ += pathsim_all[i];
+        int vertex_num_ = 0, d_ = 0, core_num_ = 0;
+        double den_ = 0.0, cc_ = 0.0;
+        double jacsim_ = 0.0, cossim_ = 0.0, pathsim_ = 0.0;
+        int com_num = 0;
+        for (int i = 0; i < query_node_num && i < query_node_list.size(); i++)
+        {
+            if (vertex_num_all[i] == 0)
+                continue;
+            com_num++;
+            vertex_num_ += vertex_num_all[i];
+            core_num_ += core_num_all[i];
+            d_ += diameter_all[i];
+            den_ += density_all[i];
+            cc_ += cc_all[i];
+            jacsim_ += sim_all[i];
+            cossim_ += cos_all[i];
+            pathsim_ += pathsim_all[i];
+        }
+        cout << "average vertex num is " << double(vertex_num_) / com_num << endl;
+        cout << "average core num is " << double(core_num_) / com_num << endl;
+        cout << "average diameter is " << double(d_) / com_num << endl;
+        cout << "average density is " << den_ / com_num << endl;
+        cout << "average cc is " << cc_ / com_num << endl;
+        cout << "average jac similarity is " << jacsim_ / com_num << endl;
+        cout << "average cos similarity is " << cossim_ / com_num << endl;
+        cout << "average pathsim similarity is " << pathsim_ / com_num << endl;
     }
-    cout << "average vertex num is " << double(vertex_num_) / com_num << endl;
-    cout << "average core num is " << double(core_num_) / com_num << endl;
-    cout << "average diameter is " << double(d_) / com_num << endl;
-    cout << "average density is " << den_ / com_num << endl;
-    cout << "average cc is " << cc_ / com_num << endl;
-    cout << "average jac similarity is " << jacsim_ / com_num << endl;
-    cout << "average cos similarity is " << cossim_ / com_num << endl;
-    cout << "average pathsim similarity is " << pathsim_ / com_num << endl;
 }
 
 void HinGraph::online_query_scan()
@@ -1314,6 +1324,7 @@ void HinGraph::online_query_scan()
     if (similar_degree[query_i] < p_mu)
     {
         is_in_community[query_i] = false;
+        cout << query_i << " Cannot search a SCAN-like community " << option_ << endl;
     }
     else
     {
@@ -1528,8 +1539,11 @@ void HinGraph::scan_check_cluster_core(int u)
         // search_k_strata(v);
 
         bool sim_res;
-        if (mode_query == 1)
+
+        if (option_ == "-qpath_sim")
             sim_res = path_utils.judge_pathsim(u, v, pathsim_epsilon);
+        else if (option_ == "-qhetesim")
+            sim_res = path_utils.judge_hetesim(u + query_type_offset_, v_id, pathsim_epsilon);
         else
             sim_res = check_struc_sim(u, v);
 
