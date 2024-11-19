@@ -1070,6 +1070,11 @@ void HinGraph::print_result(bool print_all, long use_time)
             cout << ". Use time: " << use_time << endl;
         }
     }
+    else
+    {
+        cout << ". Use time: " << use_time << endl;
+    }
+
     if (query_node_num == 1)
     {
         vector<string> author_names(num_query_type_);
@@ -1098,6 +1103,21 @@ void HinGraph::print_result(bool print_all, long use_time)
     }
 }
 
+bool judge(int p_mu, string option_, string input, int type)
+{
+    if (input.find("FreeBase") != string::npos)
+        return false;
+    std::set<int> valid_types = {0, 1, 2, 3, 122, 138, 195, 220}; // 定义包含有效类型的集合
+    if (valid_types.find(type) == valid_types.end())              // 检查type是否在集合中
+        return false;
+
+    if (p_mu == 5 && (option_.find("-qeff") == 0 || option_ == "-qsum"))
+        return true;
+    if (p_mu == 5 && (option_ == "-qpath_sim" || option_ == "-qhetesim"))
+        return true;
+    return false;
+}
+
 void HinGraph::baseline_query_()
 {
     cout << "start baseline online query " << endl;
@@ -1111,6 +1131,7 @@ void HinGraph::baseline_query_()
     vector<double> sim_all(1000, 0);
     vector<double> cos_all(1000, 0);
     vector<double> pathsim_all(1000, 0);
+    tmp_size.resize(num_query_type_);
 
     vector<long> time_cost(query_node_num, 0);
     for (int i = 0; i < query_node_num && i < query_node_list.size(); i++)
@@ -1155,15 +1176,17 @@ void HinGraph::baseline_query_()
         time_cost[i] = cost_time;
         print_result(false, cost_time);
         // if (option_ == "-qeff" || option_ == "-qeffcos" || option_ == "-qeffpathsim" || option_ == "-qsum")
-        if ((p_mu == 5) && (option_.find("-qeff") == 0 || option_ == "-qsum"))
+        if (judge(p_mu, option_, input_dir_, p_query_type))
+        {
             online_effective_result(i, vertex_num_all, core_num_all, diameter_all,
                                     density_all, cc_all, sim_all, cos_all, pathsim_all);
+        }
     }
     string str1 = "finish query " + to_string(query_node_num) + " times, use time:";
     Timer::PrintTime(str1, all_time);
     cout << "the number of search community:" << has_community << endl;
     // if (option_ == "-qeff" || option_ == "-qeffcos" || option_ == "-qeffpathsim" || option_ == "-qsum")
-    if ((p_mu == 5) && (option_.find("-qeff") == 0 || option_ == "-qsum"))
+    if (judge(p_mu, option_, input_dir_, p_query_type))
     {
         long vertex_num_ = 0, d_ = 0, core_num_ = 0;
         double den_ = 0.0, cc_ = 0.0;
@@ -1173,6 +1196,21 @@ void HinGraph::baseline_query_()
         {
             if (vertex_num_all[i] == 0)
                 continue;
+            if (tmp_size.size() > 0)
+            {
+                int vertex_size = vertex_num_all[i];
+                int times = tmp_size[vertex_size];
+                com_num += times;
+                vertex_num_ += vertex_num_all[i] * times;
+                core_num_ += core_num_all[i] * times;
+                d_ += diameter_all[i] * times;
+                den_ += density_all[i] * times;
+                cc_ += cc_all[i] * times;
+                jacsim_ += sim_all[i] * times;
+                cossim_ += cos_all[i] * times;
+                pathsim_ += pathsim_all[i] * times;
+                continue;
+            }
             com_num++;
             vertex_num_ += vertex_num_all[i];
             core_num_ += core_num_all[i];
@@ -1214,6 +1252,8 @@ void HinGraph::baseline_pathsim_query_()
     vector<double> sim_all(1000, 0);
     vector<double> cos_all(1000, 0);
     vector<double> pathsim_all(1000, 0);
+
+    tmp_size.resize(num_query_type_);
 
     vector<long> time_cost(query_node_num, 0);
     for (int i = 0; i < query_node_num && i < query_node_list.size(); i++)
@@ -1274,7 +1314,8 @@ void HinGraph::baseline_pathsim_query_()
         all_time += cost_time;
         time_cost[i] = cost_time;
         print_result(false, cost_time);
-        if (p_mu == 5)
+        // if (p_mu == 5)
+        if (judge(p_mu, option_, input_dir_, p_query_type))
             online_effective_result(i, vertex_num_all, core_num_all, diameter_all,
                                     density_all, cc_all, sim_all, cos_all, pathsim_all);
     }
@@ -1282,7 +1323,8 @@ void HinGraph::baseline_pathsim_query_()
     string str1 = "finish query " + to_string(query_node_num) + " times, use time:";
     Timer::PrintTime(str1, all_time);
     cout << "the number of search community:" << has_community << endl;
-    if (p_mu == 5)
+    // if (p_mu == 5)
+    if (judge(p_mu, option_, input_dir_, p_query_type))
     {
         int vertex_num_ = 0, d_ = 0, core_num_ = 0;
         double den_ = 0.0, cc_ = 0.0;
@@ -1292,6 +1334,21 @@ void HinGraph::baseline_pathsim_query_()
         {
             if (vertex_num_all[i] == 0)
                 continue;
+            if (tmp_size.size() > 0)
+            {
+                int vertex_size = vertex_num_all[i];
+                int times = tmp_size[vertex_size];
+                com_num += times;
+                vertex_num_ += vertex_num_all[i] * times;
+                core_num_ += core_num_all[i] * times;
+                d_ += diameter_all[i] * times;
+                den_ += density_all[i] * times;
+                cc_ += cc_all[i] * times;
+                jacsim_ += sim_all[i] * times;
+                cossim_ += cos_all[i] * times;
+                pathsim_ += pathsim_all[i] * times;
+                continue;
+            }
             com_num++;
             vertex_num_ += vertex_num_all[i];
             core_num_ += core_num_all[i];
@@ -1840,6 +1897,16 @@ void HinGraph::online_effective_result(int eff_res_i, vector<int> &vertex_num_al
             if (cand_core_[i])
                 core_num++;
         }
+    }
+    if (tmp_size[num_com] == 0)
+    {
+        tmp_size[num_com] = 1;
+        cout << "community size: " << num_com << endl;
+    }
+    else
+    {
+        vertex_num_all[eff_res_i] += 1;
+        return;
     }
     vertex_num_all[eff_res_i] = num_com;
     core_num_all[eff_res_i] = core_num;
@@ -3050,7 +3117,7 @@ void HinGraph::compute_all_similarity()
     cout << "compute all similarity";
     h_sim.resize(num_query_type_);
 
-    if (num_query_type_ >= 10000)
+    if (num_query_type_ >= 10000000)
     {
         const int num_threads = std::thread::hardware_concurrency();
         std::vector<std::thread> threads;

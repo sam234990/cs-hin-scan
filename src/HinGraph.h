@@ -231,6 +231,7 @@ public:
 
     // other baseline parameters
     double sum_epsilon;
+    vector<int> tmp_size;
 
     // scan variables
     int query_type_offset_; // vertex_id = i + query_type_offset_, i is the subscript in adjacencyList
