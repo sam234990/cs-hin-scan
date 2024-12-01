@@ -203,6 +203,12 @@ void HinGraph::cs_hin_scan(string query_file, string mode, int scale)
             baseline_pathsim_query_();
             return;
         }
+        else if (mode == "-qca")
+        {
+            mode_query = 2;
+            baseline_query_();
+            return;
+        }
         else if (mode == "-qSCAN")
         {
             mode_query = 2;
@@ -4587,6 +4593,7 @@ bool HinGraph::check_struc_sim(int a, int b)
     if (a == b)
         return true;
     double sum_sim = 0.0;
+    bool qca_res = true;
     for (const auto &pair : type_epsilon)
     {
         int type = pair.first;
@@ -4599,6 +4606,13 @@ bool HinGraph::check_struc_sim(int a, int b)
         if (option_ == "-qsum")
         {
             sum_sim += calJacSim(dn_adj_List[a].d_neighbor_[type], dn_adj_List[b].d_neighbor_[type]);
+            continue;
+        }
+        if (option_ == "-qca")
+        {
+            sim = calJacSim(dn_adj_List[a].d_neighbor_[type], dn_adj_List[b].d_neighbor_[type]);
+            if (sim < type_ep)
+                qca_res = false;
             continue;
         }
         if (option_ == "-qeffcos")
@@ -4617,6 +4631,8 @@ bool HinGraph::check_struc_sim(int a, int b)
         else
             return false;
     }
+    if (option_ == "-qca")
+        return qca_res;
     return true;
 }
 

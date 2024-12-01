@@ -122,8 +122,9 @@ void Others::output_CD_result(const HinGraph &graph, string output_path)
         for (const auto ci : res)
         {
             community_vertex[ci] = true;
+            char role = graph.cand_core_[ci] == true ? 'c' : 'n';
             int vertex_id = ci + graph.query_type_offset_;
-            output_file << vertex_id << " " << cid << endl;
+            output_file << vertex_id << " " << role << " " << cid << endl;
         }
     }
     for (int i = 0; i < graph.num_query_type_; i++)
@@ -132,9 +133,9 @@ void Others::output_CD_result(const HinGraph &graph, string output_path)
             continue;
         int vertex_id = i + graph.query_type_offset_;
         if (hub[i] == true)
-            output_file << vertex_id << " h" << endl;
+            output_file << vertex_id << " h -1"<< endl;
         else
-            output_file << vertex_id << " o" << endl;
+            output_file << vertex_id << " o -1" << endl;
     }
 
     output_file.close();
